@@ -8,7 +8,8 @@
       "gram_steps": null,
       "recall_at_5": 1.0,
       "step_reduction": 0.0,
-      "coverage": 1.0
+      "coverage": null,
+      "golden_file_count": 1
     },
     {
       "instance_id": "sympy__sympy-13647",
@@ -18,7 +19,8 @@
       "gram_steps": null,
       "recall_at_5": 0.0,
       "step_reduction": 0.0,
-      "coverage": 1.0
+      "coverage": null,
+      "golden_file_count": 1
     },
     {
       "instance_id": "sphinx-doc__sphinx-8721",
@@ -28,7 +30,8 @@
       "gram_steps": null,
       "recall_at_5": 0.0,
       "step_reduction": 0.0,
-      "coverage": 1.0
+      "coverage": null,
+      "golden_file_count": 1
     }
   ],
   "gram_metrics": [],
@@ -45,7 +48,8 @@
       "std": 0.0,
       "n": 3
     },
-    "coverage": {
+    "coverage": null,
+    "golden_file_count": {
       "mean": 1.0,
       "median": 1.0,
       "std": 0.0,

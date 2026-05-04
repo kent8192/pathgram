@@ -61,36 +61,65 @@ cargo run -p engramoid --features eval --bin engramoid-eval -- \
 
 ## Baseline measurement (2026-05-04)
 
-The deterministic baseline runner was executed against three real
-SWE-bench Lite instances (the bundled fixture's first three rows; the two
-synthetic `*-test-*` rows are skipped because they don't have real git
-checkouts available). Repos are cloned via `git2` with vendored libgit2 +
-HTTPS; cache directory at `/tmp/engramoid_repo_cache`.
+Two fixtures were executed by the deterministic baseline runner. Repos
+were cloned via `git2` (vendored libgit2 + HTTPS) into the
+`/tmp/engramoid_repo_cache` per-repo bare-clone cache.
 
-| Instance | steps | recall@5 | coverage |
+### SWE-bench Lite (single-file fixes)
+
+> **Note:** all 300 instances of the official `princeton-nlp/SWE-bench_Lite`
+> dataset modify exactly **1 golden file**. Recall@5 on this dataset is
+> mathematically constrained to {0, 1}. Full JSON report:
+> [`docs/baseline_lite_2026-05-04.json`](docs/baseline_lite_2026-05-04.json).
+
+| Instance | steps | recall@5 | golden files |
 | --- | --- | --- | --- |
-| `django__django-11099` | **17** | **1.000** | 1.000 |
-| `sympy__sympy-13647` | **12** | 0.000 | 1.000 |
-| `sphinx-doc__sphinx-8721` | **10** | 0.000 | 1.000 |
-| **mean** | **13.0** | **0.333** | 1.000 |
+| `django__django-11099` | 17 | **1.000** | 1 |
+| `sympy__sympy-13647` | 12 | 0.000 | 1 |
+| `sphinx-doc__sphinx-8721` | 10 | 0.000 | 1 |
+| **mean** | **13.0** | **0.333** | 1.0 |
 
-Full JSON report: [`docs/baseline_measurement_2026-05-04.json`](docs/baseline_measurement_2026-05-04.json).
+Coverage is reported as `null` because no gram runner is plugged in yet
+(self-paired coverage degenerates to 1.0 trivially).
+
+### SWE-bench Verified (multi-file fixes)
+
+Six instances drawn from `princeton-nlp/SWE-bench_Verified` (which
+contains 49 instances with 2 files modified, 12 with 3, 7 with 4, etc.).
+Full JSON report:
+[`docs/baseline_verified_multifile_2026-05-04.json`](docs/baseline_verified_multifile_2026-05-04.json).
+
+| Instance | steps | recall@5 | golden files |
+| --- | --- | --- | --- |
+| `astropy__astropy-14369` | 30 | 0.000 | 2 |
+| `astropy__astropy-8707` | 30 | 0.000 | 2 |
+| `django__django-10554` | 30 | 0.000 | 2 |
+| `django__django-11400` | 30 | 0.000 | 3 |
+| `django__django-11734` | 30 | 0.000 | 3 |
+| `django__django-11532` | 30 | 0.000 | 5 |
+| **mean** | **30.0** | **0.000** | 2.8 |
 
 ### Interpreting these numbers
 
-- **Step count (mean 13)** — what gram探索 must compress into 1 single tool
-  call. If gram探索 achieves comparable recall, the step-reduction-rate
-  metric becomes `(13 − 1) / 13 ≈ 0.92` (92% reduction).
-- **Recall@5 (mean 0.333)** — the baseline that gram探索 must exceed. The
-  baseline finds the right file by identifier-keyword grep in 1/3 cases
-  (django's "ASCIIUsernameValidator" name appears verbatim in
-  `validators.py`); fails in cases where the bug is described semantically
-  rather than by name (sympy's "col_insert", sphinx's "viewcode_enable_epub").
-- **Coverage (1.000)** — trivially 1.0 because we're measuring the default
-  runner against itself (no gram runner is plugged in yet). Once Phase 2.1
-  ships the LLM-backed runner and Phase 2.2/2.3 ship the gram探索 reranker,
-  coverage will be the gram blob measured against the LLM agent's final
-  reading context.
+- **Step count saturation on Verified (30.0)** — every multi-file instance
+  hit the agent's `tool_call_budget` of 30 without converging. The
+  identifier-shaped keyword extraction generates more grep candidates than
+  the budget allows.
+- **Recall@5 collapses on multi-file fixes (0.333 → 0.000)** — the
+  deterministic baseline's keyword grep cannot find files that don't
+  share identifiers with the bug description. This is a structural
+  limitation, not a tuning issue: it sets a strong lower bound for
+  Phase 2's gram探索 to beat.
+- **Coverage = `null`** — the metric is `Option<f64>` and only populated
+  when a `gram_runner` is plugged into `EvalRunner::gram_runner`. Reporting
+  a self-paired coverage of `1.0` would be misleading because
+  `final_reading_context ⊆ distinct_accessed_files` holds by definition.
+- **Step-reduction headroom for gram探索:**
+  - vs Lite baseline (mean 13 steps): gram探索 in 1 call → reduction ≈ 0.92
+  - vs Verified baseline (mean 30 steps): gram探索 in 1 call → reduction ≈ 0.97
+
+  These numbers become meaningful once gram探索 also clears the recall bar
+  (must beat 0.333 on Lite and any non-zero on Verified).
 
 ### What's NOT yet measured
 

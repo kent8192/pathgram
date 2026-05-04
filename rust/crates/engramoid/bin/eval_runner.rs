@@ -58,10 +58,16 @@ fn main() {
         report.processed_count,
         args.out.display()
     );
+    let cov_text = report.default_summary.coverage
+        .as_ref()
+        .map(|s| format!("{:.3}", s.mean))
+        .unwrap_or_else(|| "n/a (no gram runner)".into());
     eprintln!(
-        "default summary: recall@5 mean={:.3} median={:.3}, coverage mean={:.3}",
+        "default summary: recall@5 mean={:.3} median={:.3} std={:.3}, coverage mean={}, golden_files mean={:.1}",
         report.default_summary.recall_at_5.mean,
         report.default_summary.recall_at_5.median,
-        report.default_summary.coverage.mean
+        report.default_summary.recall_at_5.std,
+        cov_text,
+        report.default_summary.golden_file_count.mean,
     );
 }

@@ -40,7 +40,9 @@ pub fn paired_bootstrap_ci(
 pub struct PrimaryMetricCi {
     pub step_reduction: (f64, f64),
     pub recall_at_5: (f64, f64),
-    pub coverage: (f64, f64),
+    /// `None` when any pair has missing coverage on either side (e.g. one
+    /// runner is default-only).
+    pub coverage: Option<(f64, f64)>,
 }
 
 #[must_use]
@@ -55,12 +57,24 @@ pub fn paired_primary_ci(
     let b_step: Vec<f64> = b.iter().map(|m| m.step_reduction).collect();
     let a_recall: Vec<f64> = a.iter().map(|m| m.recall_at_5).collect();
     let b_recall: Vec<f64> = b.iter().map(|m| m.recall_at_5).collect();
-    let a_cov: Vec<f64> = a.iter().map(|m| m.coverage).collect();
-    let b_cov: Vec<f64> = b.iter().map(|m| m.coverage).collect();
+
+    // Coverage CI requires both sides to have a value at each pair index.
+    let cov_pairs: Vec<(f64, f64)> = a
+        .iter()
+        .zip(b.iter())
+        .filter_map(|(ai, bi)| Some((ai.coverage?, bi.coverage?)))
+        .collect();
+    let coverage = if cov_pairs.is_empty() {
+        None
+    } else {
+        let (a_cov, b_cov): (Vec<f64>, Vec<f64>) = cov_pairs.into_iter().unzip();
+        Some(paired_bootstrap_ci(&a_cov, &b_cov, n_resamples, confidence, seed))
+    };
+
     PrimaryMetricCi {
         step_reduction: paired_bootstrap_ci(&a_step, &b_step, n_resamples, confidence, seed),
         recall_at_5: paired_bootstrap_ci(&a_recall, &b_recall, n_resamples, confidence, seed),
-        coverage: paired_bootstrap_ci(&a_cov, &b_cov, n_resamples, confidence, seed),
+        coverage,
     }
 }
 

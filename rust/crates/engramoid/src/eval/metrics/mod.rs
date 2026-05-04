@@ -16,7 +16,15 @@ pub struct MetricRecord {
     pub gram_steps: Option<usize>,
     pub recall_at_5: f64,
     pub step_reduction: f64,
-    pub coverage: f64,
+    /// Coverage is only meaningful when comparing two runners (gram blob vs
+    /// default trace's final reading context). When `gram_runner` is `None`,
+    /// coverage would degenerate to 1.0 (self-paired), so we report `None`
+    /// instead to avoid misleading the reader.
+    pub coverage: Option<f64>,
+    /// Number of golden-diff files for this instance. Phase 2 evaluation is
+    /// more meaningful on multi-file instances; recall is mathematically
+    /// constrained to {0, 1} when this is 1.
+    pub golden_file_count: usize,
 }
 
 /// Build a `MetricRecord` from one trace.
@@ -33,18 +41,28 @@ pub fn compute_metrics(
     gram_runner_name: Option<String>,
 ) -> MetricRecord {
     let golden = golden::modified_files(&instance.patch);
+    let golden_file_count = golden.len();
     let retrieved = trace.distinct_accessed_files();
     let recall = recall::recall_at_k(&retrieved, &golden, 5);
 
     let default_steps = coverage_reference_trace.step_count();
-    let (gram_steps, step_red) = if gram_runner_name.is_some() {
+    let is_gram = gram_runner_name.is_some();
+    let (gram_steps, step_red) = if is_gram {
         let gs = trace.step_count();
         (Some(gs), step_reduction::step_reduction_rate(default_steps, gs))
     } else {
         (None, 0.0)
     };
 
-    let cov = coverage::coverage(&retrieved, &coverage_reference_trace.final_reading_context);
+    // Coverage is only well-defined when the gram blob is measured against
+    // a *different* runner's final reading context. Self-paired coverage is
+    // trivially 1.0 (final_reading_context ⊆ distinct_accessed_files), so we
+    // emit None to avoid the degenerate signal.
+    let cov = if is_gram {
+        Some(coverage::coverage(&retrieved, &coverage_reference_trace.final_reading_context))
+    } else {
+        None
+    };
 
     MetricRecord {
         instance_id: instance.instance_id.clone(),
@@ -55,6 +73,7 @@ pub fn compute_metrics(
         recall_at_5: recall,
         step_reduction: step_red,
         coverage: cov,
+        golden_file_count,
     }
 }
 
@@ -145,19 +164,28 @@ impl Stat {
 pub struct MetricSummary {
     pub recall_at_5: Stat,
     pub step_reduction: Stat,
-    pub coverage: Stat,
+    pub coverage: Option<Stat>,
+    pub golden_file_count: Stat,
 }
 
 impl MetricSummary {
+    /// Aggregate over `MetricRecord`s. `Coverage` becomes `None` if no record
+    /// has a coverage value (e.g. all measurements are default-only).
     #[must_use]
     pub fn of(records: &[MetricRecord]) -> Self {
         let recall: Vec<f64> = records.iter().map(|r| r.recall_at_5).collect();
         let step: Vec<f64> = records.iter().map(|r| r.step_reduction).collect();
-        let cov: Vec<f64> = records.iter().map(|r| r.coverage).collect();
+        let cov: Vec<f64> = records.iter().filter_map(|r| r.coverage).collect();
+        #[allow(clippy::cast_precision_loss)]
+        let gfc: Vec<f64> = records
+            .iter()
+            .map(|r| r.golden_file_count as f64)
+            .collect();
         MetricSummary {
             recall_at_5: Stat::of(&recall),
             step_reduction: Stat::of(&step),
-            coverage: Stat::of(&cov),
+            coverage: if cov.is_empty() { None } else { Some(Stat::of(&cov)) },
+            golden_file_count: Stat::of(&gfc),
         }
     }
 }
@@ -167,7 +195,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn metric_record_round_trips_json() {
+    fn metric_record_round_trips_json_default_only() {
         let r = MetricRecord {
             instance_id: "x".into(),
             default_runner: "DeterministicBaseline".into(),
@@ -176,11 +204,40 @@ mod tests {
             gram_steps: None,
             recall_at_5: 0.6,
             step_reduction: 0.0,
-            coverage: 0.4,
+            coverage: None,
+            golden_file_count: 1,
         };
         let s = serde_json::to_string(&r).unwrap();
         let back: MetricRecord = serde_json::from_str(&s).unwrap();
         assert_eq!(back, r);
+    }
+
+    #[test]
+    fn metric_record_round_trips_json_with_gram() {
+        let r = MetricRecord {
+            instance_id: "x".into(),
+            default_runner: "Default".into(),
+            gram_runner: Some("Gram".into()),
+            default_steps: 13,
+            gram_steps: Some(1),
+            recall_at_5: 0.66,
+            step_reduction: (13.0 - 1.0) / 13.0,
+            coverage: Some(0.8),
+            golden_file_count: 3,
+        };
+        let s = serde_json::to_string(&r).unwrap();
+        let back: MetricRecord = serde_json::from_str(&s).unwrap();
+        // f64 round-trips through JSON with possible last-bit drift; compare
+        // structurally with epsilon on the floats.
+        assert_eq!(back.instance_id, r.instance_id);
+        assert_eq!(back.default_runner, r.default_runner);
+        assert_eq!(back.gram_runner, r.gram_runner);
+        assert_eq!(back.default_steps, r.default_steps);
+        assert_eq!(back.gram_steps, r.gram_steps);
+        assert!((back.recall_at_5 - r.recall_at_5).abs() < 1e-9);
+        assert!((back.step_reduction - r.step_reduction).abs() < 1e-9);
+        assert!((back.coverage.unwrap() - r.coverage.unwrap()).abs() < 1e-9);
+        assert_eq!(back.golden_file_count, r.golden_file_count);
     }
 
     #[test]
@@ -194,14 +251,15 @@ mod tests {
                 gram_steps: None,
                 recall_at_5: f64::from(i) / 10.0,
                 step_reduction: 0.0,
-                coverage: 0.5,
+                coverage: None,
+                golden_file_count: 1,
             })
             .collect();
         let s = MetricSummary::of(&recs);
         assert!((s.recall_at_5.mean - 0.3).abs() < 1e-9);
         assert!((s.recall_at_5.median - 0.3).abs() < 1e-9);
-        assert!((s.coverage.mean - 0.5).abs() < 1e-9);
+        assert!(s.coverage.is_none(), "coverage skipped when no gram runner");
         assert!(s.recall_at_5.std > 0.0);
-        assert_eq!(s.coverage.std, 0.0);
+        assert_eq!(s.golden_file_count.mean, 1.0);
     }
 }
