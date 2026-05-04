@@ -59,67 +59,119 @@ cargo run -p engramoid --features eval --bin engramoid-eval -- \
     --out  /tmp/report.json
 ```
 
-## Baseline measurement (2026-05-04)
+## Baseline measurement (n=29, 2026-05-04)
 
-Two fixtures were executed by the deterministic baseline runner. Repos
-were cloned via `git2` (vendored libgit2 + HTTPS) into the
-`/tmp/engramoid_repo_cache` per-repo bare-clone cache.
+Two fixtures executed by the deterministic baseline runner; repos were
+cloned via `git2` (vendored libgit2 + HTTPS) into the
+`/tmp/engramoid_repo_cache` per-repo bare-clone cache. Both fixtures use
+**fixed RNG seed 42** for reproducibility.
 
-### SWE-bench Lite (single-file fixes)
+The deterministic agent is a keyword-grep + iterative-read baseline:
+- Up to 8 longest identifier-shaped keywords (CamelCase or snake_case)
+  extracted from the problem statement.
+- Each keyword greps the repo (code-extension files only, vendor / build
+  / cache dirs excluded).
+- Up to 5 hits per keyword become Read tool calls.
+- `tool_call_budget = 30`.
 
-> **Note:** all 300 instances of the official `princeton-nlp/SWE-bench_Lite`
-> dataset modify exactly **1 golden file**. Recall@5 on this dataset is
-> mathematically constrained to {0, 1}. Full JSON report:
-> [`docs/baseline_lite_2026-05-04.json`](docs/baseline_lite_2026-05-04.json).
+### SWE-bench Lite — single-file fixes (n=15)
 
-| Instance | steps | recall@5 | golden files |
+> **Dataset note:** all 300 instances of `princeton-nlp/SWE-bench_Lite` are
+> single-file fixes by curation. Recall@5 is therefore mathematically
+> constrained to {0, 1} per instance.
+> Full JSON: [`docs/baseline_n30_lite_2026-05-04.json`](docs/baseline_n30_lite_2026-05-04.json).
+
+| metric | value |
+| --- | --- |
+| recall@5 mean | **0.333** |
+| recall@5 median | 0.000 |
+| recall@5 std | 0.471 |
+| step count mean | **25.3** |
+| repo mix | django ×11, matplotlib ×2, sympy ×1, sphinx ×1 |
+| processed | 15 / 15 |
+| wall time | 25 min 32 s |
+
+Per-instance: 5/15 hit recall@5=1.000 (django-13551, matplotlib-25498,
+matplotlib-23476, django-14382, django-12915); 10/15 missed entirely.
+
+### SWE-bench Verified — multi-file fixes (n=14, 1 skipped)
+
+15 instances were attempted from `princeton-nlp/SWE-bench_Verified`
+(stratified by `n_files`: 8 of n=2, 4 of n=3, 2 of n=4, 1 of n=5).
+1 instance (`pydata__xarray-6992`) skipped because its `base_commit` is
+not reachable from the public repo.
+Full JSON: [`docs/baseline_n30_verified_2026-05-04.json`](docs/baseline_n30_verified_2026-05-04.json).
+
+| metric | value |
+| --- | --- |
+| recall@5 mean | **0.217** |
+| recall@5 median | 0.000 |
+| recall@5 std | 0.353 |
+| step count mean | 26.9 |
+| golden files mean | 2.8 |
+| golden files range | 2 – 5 |
+| processed | 14 / 15 |
+| wall time | 16 min 8 s |
+
+Per-instance: scikit-learn-12682 (recall=1.000, n_files=2) and
+matplotlib-25479 (recall=1.000, n_files=2) are direct hits;
+astropy-8707 (0.500, n_files=2), django-13344 (0.333, n_files=3),
+django-11532 (0.200, n_files=5) hit a fraction. The remaining 9 missed
+entirely.
+
+### Combined n=29 summary
+
+| metric | Lite n=15 | Verified n=14 | combined n=29 |
 | --- | --- | --- | --- |
-| `django__django-11099` | 17 | **1.000** | 1 |
-| `sympy__sympy-13647` | 12 | 0.000 | 1 |
-| `sphinx-doc__sphinx-8721` | 10 | 0.000 | 1 |
-| **mean** | **13.0** | **0.333** | 1.0 |
+| recall@5 mean | 0.333 | 0.217 | **0.277** |
+| step count mean | 25.3 | 26.9 | 26.1 |
+| golden files mean | 1.0 | 2.8 | 1.9 |
 
-Coverage is reported as `null` because no gram runner is plugged in yet
-(self-paired coverage degenerates to 1.0 trivially).
-
-### SWE-bench Verified (multi-file fixes)
-
-Six instances drawn from `princeton-nlp/SWE-bench_Verified` (which
-contains 49 instances with 2 files modified, 12 with 3, 7 with 4, etc.).
-Full JSON report:
-[`docs/baseline_verified_multifile_2026-05-04.json`](docs/baseline_verified_multifile_2026-05-04.json).
-
-| Instance | steps | recall@5 | golden files |
-| --- | --- | --- | --- |
-| `astropy__astropy-14369` | 30 | 0.000 | 2 |
-| `astropy__astropy-8707` | 30 | 0.000 | 2 |
-| `django__django-10554` | 30 | 0.000 | 2 |
-| `django__django-11400` | 30 | 0.000 | 3 |
-| `django__django-11734` | 30 | 0.000 | 3 |
-| `django__django-11532` | 30 | 0.000 | 5 |
-| **mean** | **30.0** | **0.000** | 2.8 |
+Coverage is `null` across all rows because no gram runner is plugged in
+yet — self-paired coverage (`final_reading_context ⊆ distinct_accessed_files`)
+trivially evaluates to 1.0 and would mislead the reader.
 
 ### Interpreting these numbers
 
-- **Step count saturation on Verified (30.0)** — every multi-file instance
-  hit the agent's `tool_call_budget` of 30 without converging. The
-  identifier-shaped keyword extraction generates more grep candidates than
-  the budget allows.
-- **Recall@5 collapses on multi-file fixes (0.333 → 0.000)** — the
-  deterministic baseline's keyword grep cannot find files that don't
-  share identifiers with the bug description. This is a structural
-  limitation, not a tuning issue: it sets a strong lower bound for
-  Phase 2's gram探索 to beat.
-- **Coverage = `null`** — the metric is `Option<f64>` and only populated
-  when a `gram_runner` is plugged into `EvalRunner::gram_runner`. Reporting
-  a self-paired coverage of `1.0` would be misleading because
-  `final_reading_context ⊆ distinct_accessed_files` holds by definition.
-- **Step-reduction headroom for gram探索:**
-  - vs Lite baseline (mean 13 steps): gram探索 in 1 call → reduction ≈ 0.92
-  - vs Verified baseline (mean 30 steps): gram探索 in 1 call → reduction ≈ 0.97
+- **Recall@5 ≈ 0.28** is the floor that Phase 2.1+ gram探索 must beat to
+  show any retrieval improvement.
+- **Step count ≈ 26** sets the step-reduction headroom: gram探索 in a
+  single tool call yields `(26 − 1) / 26 ≈ 0.96` step reduction if it
+  matches baseline recall.
+- **Lite (single-file, 0.333) > Verified (multi-file, 0.217)** confirms
+  the qualitative finding: keyword-grep degrades as bug fixes span more
+  files. Multi-file is the regime where gram探索 has the most headroom.
+- **9/15 Verified instances saturate `tool_call_budget = 30`** — the
+  deterministic agent can't even decide where to stop.
 
-  These numbers become meaningful once gram探索 also clears the recall bar
-  (must beat 0.333 on Lite and any non-zero on Verified).
+### What's NOT yet measured
+
+- **Coverage**: needs a second runner to compare against. Lands when
+  Phase 2.1's `gram_runner` slot is filled by an LLM-backed agent.
+- **Bootstrap CI on B5 − B4 deltas**: meaningful only when a gram runner
+  exists; the harness (`bootstrap::paired_primary_ci`) is ready and tested.
+- **Patch success rate**: requires SWE-bench harness execution (Phase
+  3+ scope per design doc §13).
+
+### Reproducibility
+
+```bash
+cd rust
+cargo build -p engramoid --features eval --bin engramoid-eval --release  # release for speed
+
+# Lite n=15 (~25 min on a clean cache; ~5 min warm)
+./target/release/engramoid-eval \
+    --data /path/to/baseline_n30_lite.jsonl \
+    --out  baseline_n30_lite_report.json
+
+# Verified n=15 (~16 min on a clean cache)
+./target/release/engramoid-eval \
+    --data /path/to/baseline_n30_verified.jsonl \
+    --out  baseline_n30_verified_report.json
+```
+
+Fixture generation script (Python, requires `datasets` library) is at
+`scripts/build_n30_fixtures.py`.
 
 ### What's NOT yet measured
 

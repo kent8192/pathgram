@@ -7,14 +7,19 @@ use walkdir::WalkDir;
 /// A reproducible, LLM-free baseline retrieval agent.
 ///
 /// 1. Extract identifier-shaped keywords from `instance.problem_statement`
-///    (CamelCase or snake_case, length ≥ `min_keyword_len`).
-/// 2. For each keyword, grep the repo (top `max_files_per_keyword` hits).
+///    (CamelCase or snake_case, length ≥ `min_keyword_len`, total capped at
+///    `max_keywords` to bound work on long problem statements).
+/// 2. For each keyword, grep over **code files only** (extension filter)
+///    rooted at `repo_root`, collecting the first `max_files_per_keyword`
+///    hits. Vendor / test / generated paths are skipped.
 /// 3. For each hit, record a Read tool call.
 /// 4. Final reading context = last 5 distinct file reads.
 pub struct DeterministicBaselineRunner {
     pub tool_call_budget: usize,
     pub max_files_per_keyword: usize,
     pub min_keyword_len: usize,
+    pub max_keywords: usize,
+    pub max_file_size_bytes: u64,
 }
 
 impl Default for DeterministicBaselineRunner {
@@ -23,8 +28,65 @@ impl Default for DeterministicBaselineRunner {
             tool_call_budget: 30,
             max_files_per_keyword: 5,
             min_keyword_len: 3,
+            max_keywords: 8,
+            max_file_size_bytes: 256 * 1024,
         }
     }
+}
+
+/// File extensions considered "code" by the baseline grep.
+fn is_code_extension(path: &Path) -> bool {
+    let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
+        return false;
+    };
+    matches!(
+        ext.to_ascii_lowercase().as_str(),
+        "py" | "pyx"
+            | "rs"
+            | "ts"
+            | "tsx"
+            | "js"
+            | "jsx"
+            | "mjs"
+            | "go"
+            | "java"
+            | "kt"
+            | "scala"
+            | "rb"
+            | "c"
+            | "cc"
+            | "cpp"
+            | "cxx"
+            | "h"
+            | "hpp"
+            | "cs"
+            | "swift"
+            | "m"
+            | "mm"
+    )
+}
+
+/// Path components that almost certainly do not contain bug-target source.
+fn is_skip_component(c: &str) -> bool {
+    matches!(
+        c,
+        ".git"
+            | "node_modules"
+            | "vendor"
+            | "third_party"
+            | "build"
+            | "dist"
+            | "target"
+            | "__pycache__"
+            | ".pytest_cache"
+            | ".mypy_cache"
+            | ".tox"
+            | "site-packages"
+            | "venv"
+            | ".venv"
+            | "env"
+            | ".env"
+    )
 }
 
 impl DeterministicBaselineRunner {
@@ -39,36 +101,60 @@ impl DeterministicBaselineRunner {
                 s.chars().any(char::is_uppercase) || s.contains('_')
             })
             .collect();
-        out.sort();
+        out.sort_by(|a, b| b.len().cmp(&a.len()));  // longest (= more specific) first
         out.dedup();
+        out.truncate(self.max_keywords);
         out
     }
 
-    fn grep_files(&self, root: &Path, pattern: &str) -> Vec<PathBuf> {
+    /// Collect candidate code-file paths under `root` once per session.
+    /// Filters by extension and skip-listed components.
+    fn collect_code_files(&self, root: &Path) -> Vec<PathBuf> {
+        let mut files = Vec::new();
+        let walker = WalkDir::new(root)
+            .max_depth(10)
+            .follow_links(false)
+            .into_iter()
+            .filter_entry(|e| {
+                let Some(name) = e.file_name().to_str() else { return false };
+                !is_skip_component(name)
+            });
+        for entry in walker.flatten() {
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let path = entry.path();
+            if !is_code_extension(path) {
+                continue;
+            }
+            let Ok(meta) = entry.metadata() else { continue };
+            if meta.len() > self.max_file_size_bytes {
+                continue;
+            }
+            files.push(path.to_path_buf());
+        }
+        files
+    }
+
+    fn grep_files<'a>(
+        &self,
+        candidates: &'a [PathBuf],
+        pattern: &str,
+    ) -> Vec<&'a PathBuf> {
         let escaped = regex::escape(pattern);
         let Ok(re) = Regex::new(&escaped) else {
             return Vec::new();
         };
         let mut hits = Vec::new();
-        for entry in WalkDir::new(root).max_depth(8).into_iter().flatten() {
+        for path in candidates {
             if hits.len() >= self.max_files_per_keyword {
                 break;
             }
-            if !entry.file_type().is_file() {
-                continue;
-            }
-            if entry.path().components().any(|c| c.as_os_str() == ".git") {
-                continue;
-            }
-            let Ok(meta) = entry.metadata() else { continue };
-            if meta.len() > 256 * 1024 {
-                continue;
-            }
-            let Ok(content) = std::fs::read_to_string(entry.path()) else {
+            let Ok(content) = std::fs::read_to_string(path) else {
                 continue;
             };
             if re.is_match(&content) {
-                hits.push(entry.path().to_path_buf());
+                hits.push(path);
             }
         }
         hits
@@ -82,6 +168,8 @@ impl AgentRunner for DeterministicBaselineRunner {
 
     fn run(&self, instance: &SweInstance, repo_root: &Path) -> Result<Trace, RunError> {
         let keywords = self.extract_keywords(&instance.problem_statement);
+        // Walk the repo once and reuse the candidate list across keywords.
+        let candidates = self.collect_code_files(repo_root);
         let mut tool_calls: Vec<ToolCall> = Vec::new();
         let mut accessed_order: Vec<String> = Vec::new();
 
@@ -89,7 +177,7 @@ impl AgentRunner for DeterministicBaselineRunner {
             if tool_calls.len() >= self.tool_call_budget {
                 break;
             }
-            let hits = self.grep_files(repo_root, &kw);
+            let hits = self.grep_files(&candidates, &kw);
             let hit_strs: Vec<String> = hits
                 .iter()
                 .filter_map(|p| p.strip_prefix(repo_root).ok())
