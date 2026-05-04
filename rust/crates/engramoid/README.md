@@ -74,75 +74,107 @@ The deterministic agent is a keyword-grep + iterative-read baseline:
 - Up to 5 hits per keyword become Read tool calls.
 - `tool_call_budget = 30`.
 
-### SWE-bench Lite — single-file fixes (n=15)
+### Sample-size summary
+
+| Cell | n | source | curation |
+| --- | --- | --- | --- |
+| Lite (single-file) | **n = 15** | `princeton-nlp/SWE-bench_Lite` test split (300 total) | random sample, seed 42 |
+| Verified (multi-file) attempted | n = 15 | `princeton-nlp/SWE-bench_Verified` test split (500 total) | stratified by golden `n_files`: 8×2-file, 4×3-file, 2×4-file, 1×5-file, seed 42 |
+| Verified processed | **n = 14** | — | 1 skipped (`pydata__xarray-6992`: `base_commit` unreachable) |
+| **Combined processed** | **n = 29** | — | Lite n=15 + Verified n=14 |
+
+### SWE-bench Lite — single-file fixes (n = 15)
 
 > **Dataset note:** all 300 instances of `princeton-nlp/SWE-bench_Lite` are
-> single-file fixes by curation. Recall@5 is therefore mathematically
-> constrained to {0, 1} per instance.
+> single-file fixes by curation. Recall@5 on this dataset is therefore
+> mathematically constrained to **{0, 1}** per instance.
 > Full JSON: [`docs/baseline_n30_lite_2026-05-04.json`](docs/baseline_n30_lite_2026-05-04.json).
 
-| metric | value |
+| metric | value (n = 15) |
 | --- | --- |
 | recall@5 mean | **0.333** |
 | recall@5 median | 0.000 |
 | recall@5 std | 0.471 |
+| recall@5 hit count (==1.000) | **5 / 15** |
+| recall@5 miss count (==0.000) | **10 / 15** |
 | step count mean | **25.3** |
+| step count saturated at 30 | 6 / 15 |
+| golden_file_count | 1 (all 15 instances) |
 | repo mix | django ×11, matplotlib ×2, sympy ×1, sphinx ×1 |
 | processed | 15 / 15 |
 | wall time | 25 min 32 s |
 
-Per-instance: 5/15 hit recall@5=1.000 (django-13551, matplotlib-25498,
-matplotlib-23476, django-14382, django-12915); 10/15 missed entirely.
+Per-instance recall = 1.000 (5 / 15): `django-13551`, `matplotlib-25498`,
+`matplotlib-23476`, `django-14382`, `django-12915`. The remaining 10
+returned 0.000.
 
-### SWE-bench Verified — multi-file fixes (n=14, 1 skipped)
+### SWE-bench Verified — multi-file fixes (n = 14, 1 skipped of 15 attempted)
 
-15 instances were attempted from `princeton-nlp/SWE-bench_Verified`
-(stratified by `n_files`: 8 of n=2, 4 of n=3, 2 of n=4, 1 of n=5).
-1 instance (`pydata__xarray-6992`) skipped because its `base_commit` is
-not reachable from the public repo.
-Full JSON: [`docs/baseline_n30_verified_2026-05-04.json`](docs/baseline_n30_verified_2026-05-04.json).
+> **Dataset note:** of `princeton-nlp/SWE-bench_Verified`'s 500 instances,
+> 71 modify ≥ 2 files (49 × 2-file, 12 × 3-file, 7 × 4-file, 2 × 5-file,
+> 1 × 6-file). We sampled 15 stratified across the n_files distribution.
+> Full JSON: [`docs/baseline_n30_verified_2026-05-04.json`](docs/baseline_n30_verified_2026-05-04.json).
 
-| metric | value |
+| metric | value (n = 14) |
 | --- | --- |
 | recall@5 mean | **0.217** |
 | recall@5 median | 0.000 |
 | recall@5 std | 0.353 |
+| recall@5 full hit count (==1.000) | **2 / 14** |
+| recall@5 partial hit count (0 < r < 1) | **3 / 14** |
+| recall@5 miss count (==0.000) | **9 / 14** |
 | step count mean | 26.9 |
-| golden files mean | 2.8 |
-| golden files range | 2 – 5 |
-| processed | 14 / 15 |
+| step count saturated at 30 | 10 / 14 |
+| golden_file_count distribution (post-skip) | 7 × 2-file, 4 × 3-file, 2 × 4-file, 1 × 5-file |
+| golden_file_count mean | 2.8 |
+| golden_file_count range | 2 – 5 |
+| processed | 14 / 15 (1 checkout failure) |
 | wall time | 16 min 8 s |
 
-Per-instance: scikit-learn-12682 (recall=1.000, n_files=2) and
-matplotlib-25479 (recall=1.000, n_files=2) are direct hits;
-astropy-8707 (0.500, n_files=2), django-13344 (0.333, n_files=3),
-django-11532 (0.200, n_files=5) hit a fraction. The remaining 9 missed
-entirely.
+Per-instance recall (sorted, n = 14):
 
-### Combined n=29 summary
+- 1.000: `scikit-learn-12682` (n=2), `matplotlib-25479` (n=2) — 2 / 14
+- 0.500: `astropy-8707` (n=2) — 1 / 14
+- 0.333: `django-13344` (n=3) — 1 / 14
+- 0.200: `django-11532` (n=5) — 1 / 14
+- 0.000: 9 / 14 (`pylint-6528`, `django-14170`, `sphinx-8120`,
+  `pylint-4661`, `sphinx-10673`, `sphinx-9461`, `matplotlib-14623`,
+  `pylint-6386`, `astropy-13398`)
 
-| metric | Lite n=15 | Verified n=14 | combined n=29 |
+Skipped (1 / 15): `pydata__xarray-6992` — `base_commit`
+`45c0a114e2b7b27b83c9618bc05b36afac82183c` not present in the upstream
+xarray repo at clone time.
+
+### Combined n = 29 summary
+
+| metric | Lite (n = 15) | Verified (n = 14) | combined (n = 29) |
 | --- | --- | --- | --- |
 | recall@5 mean | 0.333 | 0.217 | **0.277** |
+| recall@5 std | 0.471 | 0.353 | 0.422 |
 | step count mean | 25.3 | 26.9 | 26.1 |
-| golden files mean | 1.0 | 2.8 | 1.9 |
+| step count std | — | — | 6.2 |
+| step count saturated at 30 | 6 / 15 | 10 / 14 | **16 / 29** |
+| golden_file_count mean | 1.0 | 2.8 | 1.86 |
+| processed | 15 / 15 | 14 / 15 | **29 / 30** |
 
-Coverage is `null` across all rows because no gram runner is plugged in
-yet — self-paired coverage (`final_reading_context ⊆ distinct_accessed_files`)
+Coverage is `null` across all 29 rows because no gram runner is plugged
+in yet — self-paired coverage (`final_reading_context ⊆ distinct_accessed_files`)
 trivially evaluates to 1.0 and would mislead the reader.
 
 ### Interpreting these numbers
 
-- **Recall@5 ≈ 0.28** is the floor that Phase 2.1+ gram探索 must beat to
-  show any retrieval improvement.
-- **Step count ≈ 26** sets the step-reduction headroom: gram探索 in a
-  single tool call yields `(26 − 1) / 26 ≈ 0.96` step reduction if it
-  matches baseline recall.
-- **Lite (single-file, 0.333) > Verified (multi-file, 0.217)** confirms
-  the qualitative finding: keyword-grep degrades as bug fixes span more
-  files. Multi-file is the regime where gram探索 has the most headroom.
-- **9/15 Verified instances saturate `tool_call_budget = 30`** — the
-  deterministic agent can't even decide where to stop.
+- **Recall@5 ≈ 0.28** (combined n = 29) is the floor that Phase 2.1+
+  gram探索 must beat to show any retrieval improvement.
+- **Step count ≈ 26** (combined n = 29) sets the step-reduction
+  headroom: gram探索 in a single tool call yields `(26 − 1) / 26 ≈ 0.96`
+  step reduction if it matches baseline recall.
+- **Lite (n = 15, recall 0.333) > Verified (n = 14, recall 0.217)**
+  confirms the qualitative finding: keyword-grep degrades as bug fixes
+  span more files. Multi-file (Verified) is the regime where gram探索
+  has the most headroom.
+- **16 / 29 instances saturate `tool_call_budget = 30`** (6 Lite + 10
+  Verified) — over half the runs exhaust the agent's call budget before
+  converging.
 
 ### What's NOT yet measured
 
