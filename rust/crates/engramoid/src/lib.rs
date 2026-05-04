@@ -15,3 +15,9 @@ pub mod tracker;
 
 #[cfg(feature = "eval")]
 pub mod eval;
+
+#[cfg(feature = "eval")]
+pub mod retrieval;
+
+#[cfg(feature = "eval")]
+pub mod scorers;

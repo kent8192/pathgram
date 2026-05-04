@@ -11,7 +11,7 @@ workspace = true
 
 [features]
 default = []
-eval = ["dep:git2", "dep:regex", "dep:clap", "dep:rand", "dep:walkdir", "dep:tempfile"]
+eval = ["dep:git2", "dep:regex", "dep:clap", "dep:rand", "dep:walkdir", "dep:tempfile", "dep:reqwest"]
 eval-offline = []
 
 [dependencies]
@@ -29,6 +29,7 @@ clap = { version = "4.5", optional = true, features = ["derive"] }
 rand = { version = "0.8", optional = true }
 walkdir = { version = "2", optional = true }
 tempfile = { version = "3", optional = true }
+reqwest = { version = "0.12", optional = true, default-features = false, features = ["blocking", "json", "rustls-tls"] }
 
 [dev-dependencies]
 serial_test = "3"

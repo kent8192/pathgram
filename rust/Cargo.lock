@@ -477,6 +477,7 @@ dependencies = [
  "petgraph",
  "rand 0.8.6",
  "regex",
+ "reqwest",
  "serde",
  "serde_json",
  "serial_test",
