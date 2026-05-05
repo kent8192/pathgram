@@ -178,12 +178,105 @@ trivially evaluates to 1.0 and would mislead the reader.
 
 ### What's NOT yet measured
 
-- **Coverage**: needs a second runner to compare against. Lands when
-  Phase 2.1's `gram_runner` slot is filled by an LLM-backed agent.
-- **Bootstrap CI on B5 − B4 deltas**: meaningful only when a gram runner
-  exists; the harness (`bootstrap::paired_primary_ci`) is ready and tested.
+- **Live B0 vs B4 numbers**: the frozen γ pipeline (Phase 2.1, see below) is
+  implemented and unit-tested but not yet executed against the live OpenAI
+  Embeddings + Cohere Rerank APIs because the API keys are not yet
+  configured locally. Mock-pipeline smoke runs reproduce the plumbing
+  (step_reduction ≈ 0.91, paired bootstrap CI returned correctly) but
+  yield zero recall because mock embeddings hash inputs without semantic
+  understanding.
 - **Patch success rate**: requires SWE-bench harness execution (Phase
   3+ scope per design doc §13).
+
+## Phase 2.1 — frozen γ pipeline (B4) — implementation complete, live run blocked
+
+The frozen γ retrieval pipeline that produces the **B4 baseline** in the
+design-doc evaluation matrix is fully implemented behind
+`--gram-runner frozen-gamma`:
+
+```
+problem statement
+   → embed (OpenAI text-embedding-3-small @ 1024d)
+   → cosine top-200 (in-memory EmbeddingStore over chunked repo)
+   → Cohere rerank top-30 (rerank-english-v3.0)
+   → token-budgeted blob (8192 tokens default, line-based 50/10 chunks,
+     deduplicated, Markdown-rendered with `## file:line-line` headers)
+   → AgentRunner returns 1 tool call whose accessed_files = blob's
+     distinct paths
+```
+
+### Modules
+
+| Module | Purpose |
+| --- | --- |
+| `scorers::Embedder` / `OpenAiEmbedder` / `MockEmbedder` | text → vector, live + offline impls |
+| `scorers::Reranker` / `CohereReranker` / `MockReranker` | (query, docs) → ranked indices |
+| `retrieval::chunks::{Chunk, Chunker}` | line-based chunking with code-extension + vendor-skip filters |
+| `retrieval::embedding_store::EmbeddingStore` | brute-force cosine top-N, insert-time L2 normalization |
+| `retrieval::packer::{ContextBlob, Packer, ChunkCitation}` | greedy token-budgeted pack (chars / 4 token heuristic) |
+| `retrieval::pipeline::FrozenGammaPipeline` | wires chunker + embedder + reranker + packer |
+| `eval::agent::frozen_gamma::FrozenGammaRunner` | exposes pipeline as `AgentRunner` for the eval harness |
+
+### Mock smoke verification (offline, no API keys)
+
+```
+default summary: recall@5 mean=0.333 median=0.000 std=0.471 (n=3)
+gram summary:    recall@5 mean=0.000 std=0.000, step_reduction mean=0.908,
+                 coverage mean=0.000
+paired CI (95%, 1000 resamples):
+  step_reduction (gram − default): [0.875, 0.933]
+  recall@5       (gram − default): [-1.000, 0.000]
+```
+
+The recall is 0 with mock embeddings because they hash inputs without
+semantic understanding. The number that matters here is **step_reduction
+mean ≈ 0.91** — the structural compression gain from collapsing the
+multi-step deterministic exploration into a single tool call. This is
+upper-bounded by `(default_steps − 1) / default_steps` and so depends
+only on the default trace's step count, not on either runner's recall.
+
+### Running the live B0 vs B4 measurement
+
+Requires two API keys. Both have generous free tiers; estimated total
+cost for the full n=29 fixture is **\$1 – \$3**.
+
+```bash
+export OPENAI_API_KEY='sk-...'
+export COHERE_API_KEY='...'
+
+cd rust
+
+# B0 (deterministic) vs B4 (frozen γ) on Lite n=15
+cargo run --features eval --bin engramoid-eval --release -- \
+    --data /path/to/baseline_n30_lite.jsonl \
+    --out  docs/b0_vs_b4_lite.json \
+    --gram-runner frozen-gamma
+
+# B0 vs B4 on Verified multi-file n=14
+cargo run --features eval --bin engramoid-eval --release -- \
+    --data /path/to/baseline_n30_verified.jsonl \
+    --out  docs/b0_vs_b4_verified.json \
+    --gram-runner frozen-gamma
+```
+
+The CLI prints the two summaries plus a paired bootstrap CI on the three
+primary metrics. Reports include per-instance records suitable for
+ablations and downstream analysis.
+
+### Expected behavior once live run completes
+
+- **step_reduction**: should converge near the mock value (≈ 0.91 on
+  Lite, ≈ 0.96 on Verified) because it's structural.
+- **recall@5**: must beat the deterministic baseline's 0.333 (Lite) /
+  0.217 (Verified) for B4 to be a useful retriever. With OpenAI
+  embeddings + Cohere reranker over function-shaped chunks, the
+  literature suggests 0.6 – 0.8 is plausible on Lite, lower on Verified.
+- **coverage**: emitted as a real number (no longer `null`); meaningful
+  only when paired with the default runner's final reading context.
+
+If recall improves over baseline AND coverage is materially > 0, B4 has
+delivered its intended value and Phase 2.2 (Bayesian-Hebbian online
+graph weight learning) becomes the next milestone.
 
 ### Reproducibility
 
