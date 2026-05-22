@@ -34,7 +34,7 @@ impl<'a> FrozenGammaPipeline<'a> {
             packer: Packer::default(),
             candidate_top_n: 200,
             rerank_top_k: 30,
-            embedding_dim: 1024,
+            embedding_dim: 768,
             embed_batch_size: 64,
         }
     }

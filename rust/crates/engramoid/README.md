@@ -188,7 +188,7 @@ trivially evaluates to 1.0 and would mislead the reader.
 - **Patch success rate**: requires SWE-bench harness execution (Phase
   3+ scope per design doc §13).
 
-## Phase 2.1 — frozen γ pipeline (B4) — implementation complete, live run blocked
+## Phase 2.1 — frozen γ pipeline (B4) — live measurement complete (2026-05-22)
 
 The frozen γ retrieval pipeline that produces the **B4 baseline** in the
 design-doc evaluation matrix is fully implemented behind
@@ -196,7 +196,7 @@ design-doc evaluation matrix is fully implemented behind
 
 ```
 problem statement
-   → embed (OpenAI text-embedding-3-small @ 1024d)
+   → embed (Gemini gemini-embedding-001 @ 768d, Matryoshka)
    → cosine top-200 (in-memory EmbeddingStore over chunked repo)
    → Cohere rerank top-30 (rerank-english-v3.0)
    → token-budgeted blob (8192 tokens default, line-based 50/10 chunks,
@@ -205,11 +205,17 @@ problem statement
      distinct paths
 ```
 
+The embedder migrated from OpenAI `text-embedding-3-small` to Gemini
+`gemini-embedding-001` after the OpenAI account remained flagged as
+`billing_not_active` despite restored billing (likely a >1y-old unpaid
+invoice that the 12-month billing-history view does not surface).
+`OpenAiEmbedder` is retained in the source tree for parity.
+
 ### Modules
 
 | Module | Purpose |
 | --- | --- |
-| `scorers::Embedder` / `OpenAiEmbedder` / `MockEmbedder` | text → vector, live + offline impls |
+| `scorers::Embedder` / `GeminiEmbedder` / `MockEmbedder` | text → vector, live + offline impls (OpenAiEmbedder retained, unwired) |
 | `scorers::Reranker` / `CohereReranker` / `MockReranker` | (query, docs) → ranked indices |
 | `retrieval::chunks::{Chunk, Chunker}` | line-based chunking with code-extension + vendor-skip filters |
 | `retrieval::embedding_store::EmbeddingStore` | brute-force cosine top-N, insert-time L2 normalization |
@@ -237,11 +243,14 @@ only on the default trace's step count, not on either runner's recall.
 
 ### Running the live B0 vs B4 measurement
 
-Requires two API keys. Both have generous free tiers; estimated total
-cost for the full n=29 fixture is **\$1 – \$3**.
+Requires two API keys. Gemini AI Studio must be on a paid tier (Tier 1
+or higher) — the free tier's 5 RPM ceiling causes the embedder to spend
+all of its retry budget on backoff. Estimated total cost for n=30 is
+**\$3 – \$6**. The `GeminiEmbedder` self-throttles at 1.5 s/call and
+retries on HTTP 429 with exponential backoff (2 → 60 s, 5 attempts).
 
 ```bash
-export OPENAI_API_KEY='sk-...'
+export GEMINI_API_KEY='...'
 export COHERE_API_KEY='...'
 
 cd rust
@@ -263,20 +272,49 @@ The CLI prints the two summaries plus a paired bootstrap CI on the three
 primary metrics. Reports include per-instance records suitable for
 ablations and downstream analysis.
 
-### Expected behavior once live run completes
+### Live measurement results (2026-05-22, n=30 = 15 Lite + 15 Verified)
 
-- **step_reduction**: should converge near the mock value (≈ 0.91 on
-  Lite, ≈ 0.96 on Verified) because it's structural.
-- **recall@5**: must beat the deterministic baseline's 0.333 (Lite) /
-  0.217 (Verified) for B4 to be a useful retriever. With OpenAI
-  embeddings + Cohere reranker over function-shaped chunks, the
-  literature suggests 0.6 – 0.8 is plausible on Lite, lower on Verified.
-- **coverage**: emitted as a real number (no longer `null`); meaningful
-  only when paired with the default runner's final reading context.
+Embedder: Gemini `gemini-embedding-001` @ 768d (Matryoshka). Reranker:
+Cohere `rerank-english-v3.0`. Both datasets sampled with seed 42; see
+`scripts/build_n30_fixtures.py`. Reports persisted as
+`docs/b0_vs_b4_lite.json` / `docs/b0_vs_b4_verified.json`.
 
-If recall improves over baseline AND coverage is materially > 0, B4 has
-delivered its intended value and Phase 2.2 (Bayesian-Hebbian online
-graph weight learning) becomes the next milestone.
+| Metric | dataset | B0 (default) | B4 (γ) | Δ (B4 − B0) 95 % CI |
+| --- | --- | ---: | ---: | --- |
+| recall@5 mean | Lite | 0.333 | **0.600** | [-0.067, 0.600] |
+| recall@5 median | Lite | 0.000 | **1.000** | — |
+| step_reduction | Lite | — | 0.956 | **[0.947, 0.964]** |
+| coverage | Lite | — | 0.240 | — |
+| recall@5 mean | Verified | 0.236 | **0.291** | [-0.111, 0.256] |
+| recall@5 median | Verified | 0.000 | **0.333** | — |
+| step_reduction | Verified | — | 0.958 | **[0.945, 0.966]** |
+| coverage | Verified | — | 0.107 | — |
+| golden_files mean | Verified | 2.7 | 2.7 | — |
+
+Bootstrap configuration: 1 000 resamples, 95 % paired CI on per-instance
+B4 − B0 differences (`bootstrap::paired_primary_ci`).
+
+**Interpretation**
+
+- **step_reduction is robustly significant** on both datasets — B4
+  collapses the deterministic baseline's ~30-step walk into a single
+  retrieval call, reducing tool-call count by ~96 % with a tight CI.
+- **recall@5 improves on the mean for both datasets** (Lite +0.267,
+  Verified +0.055) but the 95 % paired CI crosses zero at n=15. The
+  improvement is not statistically significant at this sample size,
+  though the direction is consistent.
+- **multi-file (Verified) is harder for B4**: the single-call retrieval
+  bundles one blob whose distinct paths must cover ~2.7 golden files on
+  average, vs. 1.0 in Lite. The smaller mean lift (+0.055 vs. +0.267)
+  reflects that constraint.
+- **coverage is low** (Lite 0.24, Verified 0.11): B4 retrieves a
+  materially different set of files than the deterministic baseline,
+  which is expected — the two pipelines explore the repo differently.
+
+B4 delivers a clear structural win (step reduction) and a directional
+recall improvement that would need n > 15 per dataset to confirm
+statistically. That matches the Phase 2.1 success criterion well enough
+to unblock Phase 2.2 (Bayesian-Hebbian online graph weight learning).
 
 ### Reproducibility
 

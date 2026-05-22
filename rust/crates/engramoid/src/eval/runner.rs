@@ -63,15 +63,24 @@ impl<'a> EvalRunner<'a> {
             default_metrics.push(m_default);
 
             if let Some(gram) = self.gram_runner {
-                if let Ok(gram_trace) = gram.run(inst, &root) {
-                    let m_gram = compute_metrics(
-                        &gram_trace,
-                        inst,
-                        &default_trace,
-                        self.default_runner.name(),
-                        Some(gram.name().to_string()),
-                    );
-                    gram_metrics.push(m_gram);
+                match gram.run(inst, &root) {
+                    Ok(gram_trace) => {
+                        let m_gram = compute_metrics(
+                            &gram_trace,
+                            inst,
+                            &default_trace,
+                            self.default_runner.name(),
+                            Some(gram.name().to_string()),
+                        );
+                        gram_metrics.push(m_gram);
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "gram runner failed on {} ({}): {e}",
+                            inst.instance_id,
+                            gram.name()
+                        );
+                    }
                 }
             }
             processed += 1;

@@ -7,7 +7,8 @@ use engramoid::eval::{
 };
 use engramoid::scorers::{
     cohere_rerank::{CohereReranker, MockReranker},
-    openai_embed::{MockEmbedder, OpenAiEmbedder},
+    gemini_embed::GeminiEmbedder,
+    openai_embed::MockEmbedder,
     Embedder, Reranker,
 };
 use std::path::PathBuf;
@@ -22,7 +23,7 @@ enum Dataset {
 enum GramKind {
     /// No gram runner (default-only baseline measurement)
     None,
-    /// Frozen γ pipeline: OpenAI Embeddings + Cohere Rerank (live, requires API keys)
+    /// Frozen γ pipeline: Gemini Embeddings + Cohere Rerank (live, requires API keys)
     FrozenGamma,
     /// Frozen γ pipeline with mock scorers (offline; for smoke-testing the pipeline plumbing)
     FrozenGammaMock,
@@ -72,31 +73,31 @@ fn main() {
     // Build gram runner if requested. Lifetime gymnastics: we keep the
     // scorers alive in `Some` boxes so `&dyn` references stay valid for
     // the duration of the eval run.
-    let openai_box: Box<dyn Embedder>;
+    let embedder_box: Box<dyn Embedder>;
     let cohere_box: Box<dyn Reranker>;
     let gram_runner_storage: Option<FrozenGammaRunner>;
 
     match args.gram_runner {
         GramKind::None => {
-            openai_box = Box::new(MockEmbedder::new(1));
+            embedder_box = Box::new(MockEmbedder::new(1));
             cohere_box = Box::new(MockReranker);
             gram_runner_storage = None;
         }
         GramKind::FrozenGamma => {
-            let oa = OpenAiEmbedder::from_env().unwrap_or_else(|e| {
-                eprintln!("frozen-gamma requires OPENAI_API_KEY: {e}");
+            let gem = GeminiEmbedder::from_env().unwrap_or_else(|e| {
+                eprintln!("frozen-gamma requires GEMINI_API_KEY: {e}");
                 std::process::exit(2);
             });
             let cr = CohereReranker::from_env().unwrap_or_else(|e| {
                 eprintln!("frozen-gamma requires COHERE_API_KEY: {e}");
                 std::process::exit(2);
             });
-            openai_box = Box::new(oa);
+            embedder_box = Box::new(gem);
             cohere_box = Box::new(cr);
             gram_runner_storage = None;  // assigned below from refs
         }
         GramKind::FrozenGammaMock => {
-            openai_box = Box::new(MockEmbedder::new(1024));
+            embedder_box = Box::new(MockEmbedder::new(768));
             cohere_box = Box::new(MockReranker);
             gram_runner_storage = None;
         }
@@ -108,7 +109,7 @@ fn main() {
     let gram_owned: Option<FrozenGammaRunner> = if args.gram_runner == GramKind::None {
         None
     } else {
-        Some(FrozenGammaRunner::new(&*openai_box, &*cohere_box))
+        Some(FrozenGammaRunner::new(&*embedder_box, &*cohere_box))
     };
     let gram_ref: Option<&dyn engramoid::eval::agent::AgentRunner> =
         gram_owned.as_ref().map(|r| r as _);

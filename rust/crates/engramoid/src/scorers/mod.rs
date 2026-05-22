@@ -1,13 +1,17 @@
 //! Frozen semantic scorers used by the Phase 2.1 frozen γ retrieval
 //! pipeline. Currently:
 //!
-//! - `openai_embed::OpenAiEmbedder` — text-embedding-3-small @ 1024 dims
+//! - `gemini_embed::GeminiEmbedder` — gemini-embedding-001 @ 768 dims (Matryoshka)
 //! - `cohere_rerank::CohereReranker` — rerank-english-v3.0
 //!
-//! Both expose a small trait so unit tests and offline runs can plug in
-//! deterministic mocks.
+//! `openai_embed::OpenAiEmbedder` is retained for parity / future paired
+//! runs but is no longer wired into the CLI.
+//!
+//! Each implementation exposes a small trait so unit tests and offline
+//! runs can plug in deterministic mocks.
 
 pub mod cohere_rerank;
+pub mod gemini_embed;
 pub mod openai_embed;
 
 #[derive(Debug, thiserror::Error)]
