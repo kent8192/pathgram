@@ -1,11 +1,14 @@
 use clap::{Parser, ValueEnum};
-use engramoid::eval::{
-    agent::{deterministic::DeterministicBaselineRunner, frozen_gamma::FrozenGammaRunner},
+use pathgram::eval::{
+    agent::{
+        deterministic::DeterministicBaselineRunner, frozen_gamma::FrozenGammaRunner,
+        hebbian_gamma::HebbianGammaRunner,
+    },
     bootstrap::paired_primary_ci,
     loaders::{swe_bench_lite::SweBenchLiteLoader, swe_gym::SweGymLoader, Loader},
     runner::EvalRunner,
 };
-use engramoid::scorers::{
+use pathgram::scorers::{
     cohere_rerank::{CohereReranker, MockReranker},
     gemini_embed::GeminiEmbedder,
     openai_embed::MockEmbedder,
@@ -27,10 +30,14 @@ enum GramKind {
     FrozenGamma,
     /// Frozen γ pipeline with mock scorers (offline; for smoke-testing the pipeline plumbing)
     FrozenGammaMock,
+    /// Hebbian γ pipeline: Gemini + Cohere with learning (live, requires API keys)
+    HebbianGamma,
+    /// Hebbian γ pipeline with mock scorers (offline; smoke-test learning + mode gating)
+    HebbianGammaMock,
 }
 
 #[derive(Parser, Debug)]
-#[command(name = "engramoid-eval", about = "Phase 2 evaluation harness (in-process port)")]
+#[command(name = "pathgram-eval", about = "Phase 2 evaluation harness (in-process port)")]
 struct Args {
     /// Path to the JSONL dataset
     #[arg(long)]
@@ -58,6 +65,7 @@ struct Args {
     bootstrap_resamples: usize,
 }
 
+#[allow(unused_assignments)]
 fn main() {
     let args = Args::parse();
     let mut instances = match args.dataset {
@@ -70,18 +78,33 @@ fn main() {
 
     let det = DeterministicBaselineRunner::default();
 
-    // Build gram runner if requested. Lifetime gymnastics: we keep the
-    // scorers alive in `Some` boxes so `&dyn` references stay valid for
-    // the duration of the eval run.
+    // Build gram runner if requested. We keep the scorers alive in boxes
+    // so `&dyn` references stay valid. Runners are stored in an enum so
+    // both FrozenGamma and HebbianGamma can be used through the same
+    // &dyn AgentRunner reference.
+    enum GramRunner<'a> {
+        Frozen(FrozenGammaRunner<'a>),
+        Hebbian(HebbianGammaRunner<'a>),
+    }
+
+    impl<'a> GramRunner<'a> {
+        fn as_dyn(&self) -> &dyn pathgram::eval::agent::AgentRunner {
+            match self {
+                GramRunner::Frozen(r) => r,
+                GramRunner::Hebbian(r) => r,
+            }
+        }
+    }
+
     let embedder_box: Box<dyn Embedder>;
     let cohere_box: Box<dyn Reranker>;
-    let gram_runner_storage: Option<FrozenGammaRunner>;
+    let gram_owned: Option<GramRunner>;
 
     match args.gram_runner {
         GramKind::None => {
             embedder_box = Box::new(MockEmbedder::new(1));
             cohere_box = Box::new(MockReranker);
-            gram_runner_storage = None;
+            gram_owned = None;
         }
         GramKind::FrozenGamma => {
             let gem = GeminiEmbedder::from_env().unwrap_or_else(|e| {
@@ -94,25 +117,47 @@ fn main() {
             });
             embedder_box = Box::new(gem);
             cohere_box = Box::new(cr);
-            gram_runner_storage = None;  // assigned below from refs
+            gram_owned = Some(GramRunner::Frozen(FrozenGammaRunner::new(
+                &*embedder_box,
+                &*cohere_box,
+            )));
         }
         GramKind::FrozenGammaMock => {
             embedder_box = Box::new(MockEmbedder::new(768));
             cohere_box = Box::new(MockReranker);
-            gram_runner_storage = None;
+            gram_owned = Some(GramRunner::Frozen(FrozenGammaRunner::new(
+                &*embedder_box,
+                &*cohere_box,
+            )));
+        }
+        GramKind::HebbianGamma => {
+            let gem = GeminiEmbedder::from_env().unwrap_or_else(|e| {
+                eprintln!("hebbian-gamma requires GEMINI_API_KEY: {e}");
+                std::process::exit(2);
+            });
+            let cr = CohereReranker::from_env().unwrap_or_else(|e| {
+                eprintln!("hebbian-gamma requires COHERE_API_KEY: {e}");
+                std::process::exit(2);
+            });
+            embedder_box = Box::new(gem);
+            cohere_box = Box::new(cr);
+            gram_owned = Some(GramRunner::Hebbian(HebbianGammaRunner::new(
+                &*embedder_box,
+                &*cohere_box,
+            )));
+        }
+        GramKind::HebbianGammaMock => {
+            embedder_box = Box::new(MockEmbedder::new(768));
+            cohere_box = Box::new(MockReranker);
+            let runner = HebbianGammaRunner::new(&*embedder_box, &*cohere_box);
+            // Small window for PoC: transition Shadow→Canary→Mature within 5 instances
+            runner.set_window_size(4);
+            gram_owned = Some(GramRunner::Hebbian(runner));
         }
     }
 
-    // Re-borrow into &dyn for the runner construction. We must do this
-    // after the `match` so the boxes are alive.
-    let _ = gram_runner_storage;
-    let gram_owned: Option<FrozenGammaRunner> = if args.gram_runner == GramKind::None {
-        None
-    } else {
-        Some(FrozenGammaRunner::new(&*embedder_box, &*cohere_box))
-    };
-    let gram_ref: Option<&dyn engramoid::eval::agent::AgentRunner> =
-        gram_owned.as_ref().map(|r| r as _);
+    let gram_ref: Option<&dyn pathgram::eval::agent::AgentRunner> =
+        gram_owned.as_ref().map(|r| r.as_dyn());
 
     let runner = EvalRunner {
         default_runner: &det,

@@ -1,9 +1,10 @@
 use crate::eval::agent::AgentRunner;
 use crate::eval::instance::SweInstance;
-use crate::eval::metrics::{compute_metrics, MetricRecord, MetricSummary};
+use crate::eval::metrics::{compute_metrics, MetricRecord, MetricSummary, RunnerTiming};
 use crate::eval::sandbox::{git_checkout::RepoCache, Workdir};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::time::Instant;
 
 pub type RepoUrlResolver = Box<dyn Fn(&str) -> String + Send + Sync>;
 
@@ -59,18 +60,28 @@ impl<'a> EvalRunner<'a> {
                 &default_trace,
                 self.default_runner.name(),
                 None,
+                RunnerTiming::default(),
             );
             default_metrics.push(m_default);
 
             if let Some(gram) = self.gram_runner {
+                let start = Instant::now();
                 match gram.run(inst, &root) {
                     Ok(gram_trace) => {
+                        let wall_time_ms = Some(start.elapsed().as_millis() as u64);
+                        let chunk_count = Some(gram_trace.tool_calls.iter().map(|tc| tc.accessed_files.len()).sum());
+                        let timing = RunnerTiming {
+                            wall_time_ms,
+                            api_cost_estimate: None, // set by pipeline if available
+                            chunk_count,
+                        };
                         let m_gram = compute_metrics(
                             &gram_trace,
                             inst,
                             &default_trace,
                             self.default_runner.name(),
                             Some(gram.name().to_string()),
+                            timing,
                         );
                         gram_metrics.push(m_gram);
                     }

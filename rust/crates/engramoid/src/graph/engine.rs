@@ -1,6 +1,6 @@
-//! Ported from kent8192/engramoid `core/src/graph/engine.rs` (Phase 1).
+//! Ported from kent8192/engramoid `core/src/graph/engine.rs` (Phase 1) into pathgram.
 
-use crate::graph::models::{Edge, Node, NodeId, NodeKind};
+use crate::graph::models::{Edge, EdgeKind, Node, NodeId, NodeKind};
 use petgraph::stable_graph::{NodeIndex, StableGraph};
 use petgraph::visit::EdgeRef;
 use std::collections::HashMap;
@@ -94,6 +94,13 @@ impl GraphEngine {
         self.graph.edge_weights().collect()
     }
 
+    /// Returns mutable references to all edges. The references are
+    /// non-overlapping (guaranteed by petgraph), so multiple `&mut Edge`
+    /// can coexist in the returned Vec.
+    pub fn all_edges_mut(&mut self) -> Vec<&mut Edge> {
+        self.graph.edge_weights_mut().collect()
+    }
+
     pub fn load_from(&mut self, nodes: Vec<Node>, edges: Vec<Edge>) {
         self.graph.clear();
         self.node_index_map.clear();
@@ -109,6 +116,27 @@ impl GraphEngine {
         if let Some(node) = self.get_node_mut(id) {
             node.record_access();
         }
+    }
+
+    /// Find and mutate an edge between `source` and `target` of the given
+    /// `kind`, checking both directions. Returns `true` if an edge was
+    /// found and the closure was applied.
+    pub fn update_edge<F>(&mut self, source: &NodeId, target: &NodeId, kind: &EdgeKind, f: F) -> bool
+    where
+        F: FnOnce(&mut Edge),
+    {
+        let mut found = false;
+        for edge in self.graph.edge_weights_mut() {
+            if edge.kind == *kind
+                && ((&edge.source == source && &edge.target == target)
+                    || (&edge.source == target && &edge.target == source))
+            {
+                f(edge);
+                found = true;
+                break;
+            }
+        }
+        found
     }
 }
 

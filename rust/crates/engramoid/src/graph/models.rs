@@ -1,5 +1,5 @@
 //! Ported verbatim from kent8192/engramoid `core/src/graph/models.rs`
-//! (Phase 1 foundation, branch feat/phase1-foundation).
+//! (Phase 1 foundation, branch feat/phase1-foundation) into pathgram.
 //!
 //! Changes vs upstream:
 //! - none (data model is identical; in-process semantics depend only on these
@@ -102,7 +102,7 @@ impl Node {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum EdgeKind {
     Contains,
     Imports,
@@ -131,6 +131,8 @@ pub struct Edge {
     pub base_weight: f64,
     pub confidence: f64,
     pub update_count: u64,
+    pub alpha: f64,
+    pub beta: f64,
 }
 
 impl Edge {
@@ -144,6 +146,8 @@ impl Edge {
             base_weight: 1.0,
             confidence: 1.0,
             update_count: 0,
+            alpha: 0.5,
+            beta: 1.5,
         }
     }
 }
@@ -179,9 +183,9 @@ mod tests {
         let source = NodeId::new();
         let target = NodeId::new();
         let edge = Edge::new(source, target, EdgeKind::Contains);
-        assert_eq!(edge.weight, 1.0);
-        assert_eq!(edge.base_weight, 1.0);
-        assert_eq!(edge.confidence, 1.0);
+        assert!((edge.weight - 1.0).abs() < f64::EPSILON);
+        assert!((edge.base_weight - 1.0).abs() < f64::EPSILON);
+        assert!((edge.confidence - 1.0).abs() < f64::EPSILON);
         assert_eq!(edge.update_count, 0);
     }
 

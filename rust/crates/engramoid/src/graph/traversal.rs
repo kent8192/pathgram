@@ -1,10 +1,10 @@
-//! Ported from kent8192/engramoid `core/src/graph/traversal.rs` (Phase 1).
+//! Ported from kent8192/engramoid `core/src/graph/traversal.rs` (Phase 1) into pathgram.
 
 use crate::graph::engine::GraphEngine;
 use crate::graph::models::NodeId;
 use std::collections::HashMap;
 
-/// Personalized PageRank from seed nodes.
+/// Personalized `PageRank` from seed nodes.
 ///
 /// Computes relevance scores for all nodes in the graph, biased toward
 /// the given seed nodes. Uses edge weights and confidence values to
@@ -114,8 +114,7 @@ mod tests {
         let a_score = scores
             .iter()
             .find(|(id, _)| *id == id_a)
-            .map(|(_, s)| *s)
-            .unwrap_or(0.0);
+            .map_or(0.0, |(_, s)| *s);
         assert!(a_score > 0.0);
     }
 
@@ -144,13 +143,11 @@ mod tests {
         let b_score = scores
             .iter()
             .find(|(id, _)| *id == id_b)
-            .map(|(_, s)| *s)
-            .unwrap_or(0.0);
+            .map_or(0.0, |(_, s)| *s);
         let c_score = scores
             .iter()
             .find(|(id, _)| *id == id_c)
-            .map(|(_, s)| *s)
-            .unwrap_or(0.0);
+            .map_or(0.0, |(_, s)| *s);
         assert!(
             b_score > c_score,
             "Connected node B ({b_score}) should score higher than disconnected C ({c_score})"

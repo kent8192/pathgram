@@ -9,7 +9,13 @@
 //! See `crates/engramoid/src/agent/frozen_gamma.rs` for the AgentRunner
 //! implementation that exposes this pipeline as a single-step retrieval.
 
+pub mod candidates;
 pub mod chunks;
 pub mod embedding_store;
+pub mod error_extract;
+pub mod hook_cache;
+pub mod iterative;
+pub mod keyword;
 pub mod packer;
 pub mod pipeline;
+pub mod query_expand;

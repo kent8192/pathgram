@@ -27,7 +27,7 @@ impl Workdir {
     /// Take ownership of the underlying directory, preventing cleanup.
     pub fn keep(mut self) -> PathBuf {
         let td = self.inner.take().expect("already kept");
-        let p = td.into_path();
+        let p = td.keep();
         self.persisted_path = Some(p.clone());
         p
     }

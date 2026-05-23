@@ -1,8 +1,7 @@
 use super::runner::{AgentRunner, RunError, ToolCall, ToolKind, Trace};
 use crate::eval::instance::SweInstance;
-use regex::Regex;
-use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
+use crate::retrieval::keyword;
+use std::path::Path;
 
 /// A reproducible, LLM-free baseline retrieval agent.
 ///
@@ -14,6 +13,9 @@ use walkdir::WalkDir;
 ///    hits. Vendor / test / generated paths are skipped.
 /// 3. For each hit, record a Read tool call.
 /// 4. Final reading context = last 5 distinct file reads.
+///
+/// Keyword extraction and file grepping are delegated to
+/// `crate::retrieval::keyword` so the hybrid pipeline can reuse them.
 pub struct DeterministicBaselineRunner {
     pub tool_call_budget: usize,
     pub max_files_per_keyword: usize,
@@ -34,142 +36,18 @@ impl Default for DeterministicBaselineRunner {
     }
 }
 
-/// File extensions considered "code" by the baseline grep.
-fn is_code_extension(path: &Path) -> bool {
-    let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
-        return false;
-    };
-    matches!(
-        ext.to_ascii_lowercase().as_str(),
-        "py" | "pyx"
-            | "rs"
-            | "ts"
-            | "tsx"
-            | "js"
-            | "jsx"
-            | "mjs"
-            | "go"
-            | "java"
-            | "kt"
-            | "scala"
-            | "rb"
-            | "c"
-            | "cc"
-            | "cpp"
-            | "cxx"
-            | "h"
-            | "hpp"
-            | "cs"
-            | "swift"
-            | "m"
-            | "mm"
-    )
-}
-
-/// Path components that almost certainly do not contain bug-target source.
-fn is_skip_component(c: &str) -> bool {
-    matches!(
-        c,
-        ".git"
-            | "node_modules"
-            | "vendor"
-            | "third_party"
-            | "build"
-            | "dist"
-            | "target"
-            | "__pycache__"
-            | ".pytest_cache"
-            | ".mypy_cache"
-            | ".tox"
-            | "site-packages"
-            | "venv"
-            | ".venv"
-            | "env"
-            | ".env"
-    )
-}
-
-impl DeterministicBaselineRunner {
-    fn extract_keywords(&self, statement: &str) -> Vec<String> {
-        let kw = Regex::new(r"[A-Za-z_][A-Za-z0-9_]+").expect("regex compiles");
-        let mut out: Vec<String> = kw
-            .find_iter(statement)
-            .map(|m| m.as_str().to_string())
-            .filter(|s| s.len() >= self.min_keyword_len)
-            .filter(|s| {
-                // Prefer identifier-shaped tokens (CamelCase or snake_case)
-                s.chars().any(char::is_uppercase) || s.contains('_')
-            })
-            .collect();
-        out.sort_by(|a, b| b.len().cmp(&a.len()));  // longest (= more specific) first
-        out.dedup();
-        out.truncate(self.max_keywords);
-        out
-    }
-
-    /// Collect candidate code-file paths under `root` once per session.
-    /// Filters by extension and skip-listed components.
-    fn collect_code_files(&self, root: &Path) -> Vec<PathBuf> {
-        let mut files = Vec::new();
-        let walker = WalkDir::new(root)
-            .max_depth(10)
-            .follow_links(false)
-            .into_iter()
-            .filter_entry(|e| {
-                let Some(name) = e.file_name().to_str() else { return false };
-                !is_skip_component(name)
-            });
-        for entry in walker.flatten() {
-            if !entry.file_type().is_file() {
-                continue;
-            }
-            let path = entry.path();
-            if !is_code_extension(path) {
-                continue;
-            }
-            let Ok(meta) = entry.metadata() else { continue };
-            if meta.len() > self.max_file_size_bytes {
-                continue;
-            }
-            files.push(path.to_path_buf());
-        }
-        files
-    }
-
-    fn grep_files<'a>(
-        &self,
-        candidates: &'a [PathBuf],
-        pattern: &str,
-    ) -> Vec<&'a PathBuf> {
-        let escaped = regex::escape(pattern);
-        let Ok(re) = Regex::new(&escaped) else {
-            return Vec::new();
-        };
-        let mut hits = Vec::new();
-        for path in candidates {
-            if hits.len() >= self.max_files_per_keyword {
-                break;
-            }
-            let Ok(content) = std::fs::read_to_string(path) else {
-                continue;
-            };
-            if re.is_match(&content) {
-                hits.push(path);
-            }
-        }
-        hits
-    }
-}
-
 impl AgentRunner for DeterministicBaselineRunner {
     fn name(&self) -> &'static str {
         "DeterministicBaseline"
     }
 
     fn run(&self, instance: &SweInstance, repo_root: &Path) -> Result<Trace, RunError> {
-        let keywords = self.extract_keywords(&instance.problem_statement);
-        // Walk the repo once and reuse the candidate list across keywords.
-        let candidates = self.collect_code_files(repo_root);
+        let keywords = keyword::extract_keywords(
+            &instance.problem_statement,
+            self.max_keywords,
+            self.min_keyword_len,
+        );
+        let candidates = keyword::collect_code_files(repo_root, self.max_file_size_bytes);
         let mut tool_calls: Vec<ToolCall> = Vec::new();
         let mut accessed_order: Vec<String> = Vec::new();
 
@@ -177,7 +55,7 @@ impl AgentRunner for DeterministicBaselineRunner {
             if tool_calls.len() >= self.tool_call_budget {
                 break;
             }
-            let hits = self.grep_files(&candidates, &kw);
+            let hits = keyword::grep_files(&candidates, &kw, self.max_files_per_keyword);
             let hit_strs: Vec<String> = hits
                 .iter()
                 .filter_map(|p| p.strip_prefix(repo_root).ok())

@@ -25,6 +25,23 @@ pub struct MetricRecord {
     /// more meaningful on multi-file instances; recall is mathematically
     /// constrained to {0, 1} when this is 1.
     pub golden_file_count: usize,
+    /// Wall-clock time for the gram runner in milliseconds. `None` for
+    /// default-only measurements (no retrieval pipeline to time).
+    pub wall_time_ms: Option<u64>,
+    /// Estimated API cost in USD. Based on embedding + rerank token counts.
+    /// `None` for default-only or mock-scorer runs.
+    pub api_cost_estimate: Option<f64>,
+    /// Number of chunks processed by the retrieval pipeline. `None` for
+    /// default-only measurements.
+    pub chunk_count: Option<usize>,
+}
+
+/// Supplementary timing/cost info for a single runner invocation.
+#[derive(Debug, Clone, Default)]
+pub struct RunnerTiming {
+    pub wall_time_ms: Option<u64>,
+    pub api_cost_estimate: Option<f64>,
+    pub chunk_count: Option<usize>,
 }
 
 /// Build a `MetricRecord` from one trace.
@@ -39,6 +56,7 @@ pub fn compute_metrics(
     coverage_reference_trace: &Trace,
     default_runner_name: &str,
     gram_runner_name: Option<String>,
+    timing: RunnerTiming,
 ) -> MetricRecord {
     let golden = golden::modified_files(&instance.patch);
     let golden_file_count = golden.len();
@@ -74,6 +92,9 @@ pub fn compute_metrics(
         step_reduction: step_red,
         coverage: cov,
         golden_file_count,
+        wall_time_ms: timing.wall_time_ms,
+        api_cost_estimate: timing.api_cost_estimate,
+        chunk_count: timing.chunk_count,
     }
 }
 
@@ -90,6 +111,7 @@ pub fn compute_batch(
     instances: &[SweInstance],
     default_runner_name: &str,
     gram_runner_name: Option<&str>,
+    timings: Option<&[RunnerTiming]>,
 ) -> Vec<MetricRecord> {
     let n = default_traces.len().min(instances.len());
     if let Some(gt) = gram_traces {
@@ -100,12 +122,17 @@ pub fn compute_batch(
         let default_t = &default_traces[i];
         let inst = &instances[i];
         if let Some(gt) = gram_traces {
+            let timing = timings
+                .and_then(|t| t.get(i))
+                .cloned()
+                .unwrap_or_default();
             out.push(compute_metrics(
                 &gt[i],
                 inst,
                 default_t,
                 default_runner_name,
                 gram_runner_name.map(String::from),
+                timing,
             ));
         } else {
             out.push(compute_metrics(
@@ -114,6 +141,7 @@ pub fn compute_batch(
                 default_t,
                 default_runner_name,
                 None,
+                RunnerTiming::default(),
             ));
         }
     }
@@ -206,6 +234,9 @@ mod tests {
             step_reduction: 0.0,
             coverage: None,
             golden_file_count: 1,
+            wall_time_ms: None,
+            api_cost_estimate: None,
+            chunk_count: None,
         };
         let s = serde_json::to_string(&r).unwrap();
         let back: MetricRecord = serde_json::from_str(&s).unwrap();
@@ -224,6 +255,9 @@ mod tests {
             step_reduction: (13.0 - 1.0) / 13.0,
             coverage: Some(0.8),
             golden_file_count: 3,
+            wall_time_ms: Some(1500),
+            api_cost_estimate: Some(0.0042),
+            chunk_count: Some(45),
         };
         let s = serde_json::to_string(&r).unwrap();
         let back: MetricRecord = serde_json::from_str(&s).unwrap();
@@ -253,6 +287,9 @@ mod tests {
                 step_reduction: 0.0,
                 coverage: None,
                 golden_file_count: 1,
+                wall_time_ms: None,
+                api_cost_estimate: None,
+                chunk_count: None,
             })
             .collect();
         let s = MetricSummary::of(&recs);
