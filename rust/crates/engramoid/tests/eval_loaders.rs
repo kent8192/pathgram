@@ -1,6 +1,6 @@
 #![cfg(feature = "eval")]
 
-use engramoid::eval::loaders::{
+use pathgram::eval::loaders::{
     swe_bench_lite::SweBenchLiteLoader, swe_gym::SweGymLoader, Loader,
 };
 use std::path::PathBuf;

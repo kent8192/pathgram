@@ -1,7 +1,7 @@
-# engramoid (in-process port)
+# pathgram (in-process port)
 
 This crate is the **in-process Rust port** of [`kent8192/engramoid`][upstream]
-into the pathgram (claw-code) workspace. It supplies the knowledge-graph
+into the pathgram workspace. It supplies the knowledge-graph
 substrate for Phase 2 of the gram探索 design — a per-project online-learned
 single-step retrieval system for coding agents.
 
@@ -20,8 +20,8 @@ From `kent8192/engramoid`'s `feat/phase1-foundation` branch:
 
 | Upstream layer | Reason it doesn't ship in pathgram |
 | --- | --- |
-| PostgreSQL backend (`core/src/storage/postgres.rs`, `core/migrations/`) | Pathgram is a single-binary CLI; a Postgres dependency would be a major install regression. The port keeps the in-memory graph only. |
-| gRPC server (`core/src/server/grpc.rs`) | In-process integration: pathgram calls into engramoid as a Rust crate, no IPC needed. |
+| PostgreSQL backend (`core/src/storage/postgres.rs`, `core/migrations/`) | pathgram is a single-binary CLI; a Postgres dependency would be a major install regression. The port keeps the in-memory graph only. |
+| gRPC server (`core/src/server/grpc.rs`) | In-process integration: pathgram calls into the graph crate directly, no IPC needed. |
 | WebSocket dashboard (`core/src/server/ws.rs`) | Out-of-scope for Phase 2 measurement; can be re-introduced as a follow-up if needed. |
 | TypeScript MCP plugin (`plugin/`) | The plugin's purpose (MCP tool exposure) will be reimplemented as a native Rust MCP server inside pathgram in a follow-up. |
 
@@ -46,15 +46,15 @@ A Phase-2-specific evaluation harness, gated behind `--features eval`:
 cd rust
 
 # default build (in-process graph + tracker only)
-cargo build -p engramoid
-cargo test  -p engramoid                                   # 16 tests
+cargo build -p pathgram
+cargo test  -p pathgram                                   # 16 tests
 
 # with the eval harness
-cargo build -p engramoid --features eval --bin engramoid-eval
-cargo test  -p engramoid --features eval                   # 43 tests
+cargo build -p pathgram --features eval --bin pathgram-eval
+cargo test  -p pathgram --features eval                   # 43 tests
 
 # run the deterministic baseline on the bundled fixture
-cargo run -p engramoid --features eval --bin engramoid-eval -- \
+cargo run -p pathgram --features eval --bin pathgram-eval -- \
     --data crates/engramoid/tests/eval/fixtures/swe_bench_lite_subset.jsonl \
     --out  /tmp/report.json
 ```
@@ -256,13 +256,13 @@ export COHERE_API_KEY='...'
 cd rust
 
 # B0 (deterministic) vs B4 (frozen γ) on Lite n=15
-cargo run --features eval --bin engramoid-eval --release -- \
+cargo run --features eval --bin pathgram-eval --release -- \
     --data /path/to/baseline_n30_lite.jsonl \
     --out  docs/b0_vs_b4_lite.json \
     --gram-runner frozen-gamma
 
 # B0 vs B4 on Verified multi-file n=14
-cargo run --features eval --bin engramoid-eval --release -- \
+cargo run --features eval --bin pathgram-eval --release -- \
     --data /path/to/baseline_n30_verified.jsonl \
     --out  docs/b0_vs_b4_verified.json \
     --gram-runner frozen-gamma
@@ -320,15 +320,15 @@ to unblock Phase 2.2 (Bayesian-Hebbian online graph weight learning).
 
 ```bash
 cd rust
-cargo build -p engramoid --features eval --bin engramoid-eval --release  # release for speed
+cargo build -p pathgram --features eval --bin pathgram-eval --release  # release for speed
 
 # Lite n=15 (~25 min on a clean cache; ~5 min warm)
-./target/release/engramoid-eval \
+./target/release/pathgram-eval \
     --data /path/to/baseline_n30_lite.jsonl \
     --out  baseline_n30_lite_report.json
 
 # Verified n=15 (~16 min on a clean cache)
-./target/release/engramoid-eval \
+./target/release/pathgram-eval \
     --data /path/to/baseline_n30_verified.jsonl \
     --out  baseline_n30_verified_report.json
 ```
@@ -356,15 +356,15 @@ See the [Phase 2 design doc][spec] for the full plan.
 ## Testing
 
 ```bash
-cargo test -p engramoid                                # 16 lib tests, no features
-cargo test -p engramoid --features eval                # 41 lib tests + 2 integration
-cargo test -p engramoid --features "eval eval-offline" # CI-friendly (no network)
+cargo test -p pathgram                                # 16 lib tests, no features
+cargo test -p pathgram --features eval                # 41 lib tests + 2 integration
+cargo test -p pathgram --features "eval eval-offline" # CI-friendly (no network)
 ```
 
 ## Source attribution
 
 This crate is a **port**, not original work for the
-`engramoid::graph::*` and `engramoid::tracker::*` modules. The original
+`pathgram::graph::*` and `pathgram::tracker::*` modules. The original
 implementation lives at <https://github.com/kent8192/engramoid> and remains
 the authoritative source for the standalone-service variant.
 

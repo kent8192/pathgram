@@ -1,4 +1,4 @@
-//! Ported from kent8192/engramoid `core/src/tracker/models.rs` (Phase 1).
+//! Ported from kent8192/engramoid `core/src/tracker/models.rs` (Phase 1) into pathgram.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

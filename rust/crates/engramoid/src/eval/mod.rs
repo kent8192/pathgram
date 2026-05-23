@@ -1,4 +1,4 @@
-//! Phase 2.0 evaluation harness for the in-process engramoid port.
+//! Phase 2.0 evaluation harness for the in-process pathgram port.
 //!
 //! Gated behind `--features eval`. Provides SWE-bench Lite/Gym JSONL
 //! loaders, a tempdir-and-git-clone sandbox, an `AgentRunner` trait with a
