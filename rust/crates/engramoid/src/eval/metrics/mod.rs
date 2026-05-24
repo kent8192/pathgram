@@ -15,7 +15,9 @@ pub struct MetricRecord {
     pub default_steps: usize,
     pub gram_steps: Option<usize>,
     pub recall_at_5: f64,
-    pub step_reduction: f64,
+    /// `None` when gram_steps is 0 (Shadow mode, API failure, or
+    /// default-only measurement) — no meaningful reduction to report.
+    pub step_reduction: Option<f64>,
     /// Coverage is only meaningful when comparing two runners (gram blob vs
     /// default trace's final reading context). When `gram_runner` is `None`,
     /// coverage would degenerate to 1.0 (self-paired), so we report `None`
@@ -69,7 +71,7 @@ pub fn compute_metrics(
         let gs = trace.step_count();
         (Some(gs), step_reduction::step_reduction_rate(default_steps, gs))
     } else {
-        (None, 0.0)
+        (None, None)
     };
 
     // Coverage is only well-defined when the gram blob is measured against
@@ -202,7 +204,7 @@ impl MetricSummary {
     #[must_use]
     pub fn of(records: &[MetricRecord]) -> Self {
         let recall: Vec<f64> = records.iter().map(|r| r.recall_at_5).collect();
-        let step: Vec<f64> = records.iter().map(|r| r.step_reduction).collect();
+        let step: Vec<f64> = records.iter().filter_map(|r| r.step_reduction).collect();
         let cov: Vec<f64> = records.iter().filter_map(|r| r.coverage).collect();
         #[allow(clippy::cast_precision_loss)]
         let gfc: Vec<f64> = records
@@ -231,7 +233,7 @@ mod tests {
             default_steps: 10,
             gram_steps: None,
             recall_at_5: 0.6,
-            step_reduction: 0.0,
+            step_reduction: None,
             coverage: None,
             golden_file_count: 1,
             wall_time_ms: None,
@@ -252,7 +254,7 @@ mod tests {
             default_steps: 13,
             gram_steps: Some(1),
             recall_at_5: 0.66,
-            step_reduction: (13.0 - 1.0) / 13.0,
+            step_reduction: Some((13.0 - 1.0) / 13.0),
             coverage: Some(0.8),
             golden_file_count: 3,
             wall_time_ms: Some(1500),
@@ -269,7 +271,9 @@ mod tests {
         assert_eq!(back.default_steps, r.default_steps);
         assert_eq!(back.gram_steps, r.gram_steps);
         assert!((back.recall_at_5 - r.recall_at_5).abs() < 1e-9);
-        assert!((back.step_reduction - r.step_reduction).abs() < 1e-9);
+        assert!(
+            (back.step_reduction.unwrap() - r.step_reduction.unwrap()).abs() < 1e-9
+        );
         assert!((back.coverage.unwrap() - r.coverage.unwrap()).abs() < 1e-9);
         assert_eq!(back.golden_file_count, r.golden_file_count);
     }
@@ -284,7 +288,7 @@ mod tests {
                 default_steps: 0,
                 gram_steps: None,
                 recall_at_5: f64::from(i) / 10.0,
-                step_reduction: 0.0,
+                step_reduction: None,
                 coverage: None,
                 golden_file_count: 1,
                 wall_time_ms: None,

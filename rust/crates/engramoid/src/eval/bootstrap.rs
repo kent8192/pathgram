@@ -53,8 +53,14 @@ pub fn paired_primary_ci(
     confidence: f64,
     seed: u64,
 ) -> PrimaryMetricCi {
-    let a_step: Vec<f64> = a.iter().map(|m| m.step_reduction).collect();
-    let b_step: Vec<f64> = b.iter().map(|m| m.step_reduction).collect();
+    // Filter to pairs where both sides have a meaningful step_reduction.
+    // Pairs with None on either side (Shadow mode, API failure) are excluded.
+    let step_pairs: Vec<(f64, f64)> = a
+        .iter()
+        .zip(b.iter())
+        .filter_map(|(ai, bi)| Some((ai.step_reduction?, bi.step_reduction?)))
+        .collect();
+    let (a_step, b_step): (Vec<f64>, Vec<f64>) = step_pairs.into_iter().unzip();
     let a_recall: Vec<f64> = a.iter().map(|m| m.recall_at_5).collect();
     let b_recall: Vec<f64> = b.iter().map(|m| m.recall_at_5).collect();
 

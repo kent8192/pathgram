@@ -74,6 +74,14 @@ fn main() {
     };
     if let Some(lim) = args.limit {
         instances.truncate(lim);
+        if lim < 5 {
+            eprintln!(
+                "warning: --limit {lim} produces statistically unreliable results. \
+                 n < 5 means recall@5 is nearly binary and step_reduction may be \
+                 degenerate. Use --limit >= 15 for meaningful averages, >= 30 for \
+                 reliable bootstrap CIs."
+            );
+        }
     }
 
     let det = DeterministicBaselineRunner::default();
@@ -141,10 +149,14 @@ fn main() {
             });
             embedder_box = Box::new(gem);
             cohere_box = Box::new(cr);
-            gram_owned = Some(GramRunner::Hebbian(HebbianGammaRunner::new(
-                &*embedder_box,
-                &*cohere_box,
-            )));
+            let runner = HebbianGammaRunner::new(&*embedder_box, &*cohere_box);
+            // Match window to batch size so Shadow→Canary transition can occur
+            // even with small --limit values. half_window = window / 2.
+            if let Some(lim) = args.limit {
+                let w = (lim / 2).max(2).min(20);
+                runner.set_window_size(w);
+            }
+            gram_owned = Some(GramRunner::Hebbian(runner));
         }
         GramKind::HebbianGammaMock => {
             embedder_box = Box::new(MockEmbedder::new(768));
@@ -191,12 +203,17 @@ fn main() {
         report.default_summary.golden_file_count.mean,
     );
     if let Some(gs) = &report.gram_summary {
+        let step_text = if gs.step_reduction.n == 0 {
+            "n/a".to_string()
+        } else {
+            format!("{:.3}", gs.step_reduction.mean)
+        };
         eprintln!(
-            "gram summary:    recall@5 mean={:.3} median={:.3} std={:.3}, step_reduction mean={:.3}, coverage mean={}",
+            "gram summary:    recall@5 mean={:.3} median={:.3} std={:.3}, step_reduction mean={}, coverage mean={}",
             gs.recall_at_5.mean,
             gs.recall_at_5.median,
             gs.recall_at_5.std,
-            gs.step_reduction.mean,
+            step_text,
             gs.coverage.as_ref().map(|s| format!("{:.3}", s.mean)).unwrap_or_else(|| "n/a".into()),
         );
         // Paired bootstrap CI (B5 − B4 deltas; here gram vs default)

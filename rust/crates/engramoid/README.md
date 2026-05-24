@@ -338,18 +338,105 @@ Fixture generation script (Python, requires `datasets` library) is at
 
 ### What's NOT yet measured
 
-Phase 2.0 ships the harness; it does **not** ship the gram探索 system itself.
-Real efficacy comparison (B5 = gram探索 vs B4 = frozen γ pipeline, design
-doc §8.2) requires:
+- **Patch success rate**: requires SWE-bench harness execution (Phase 3+
+  scope per design doc §13).
 
-1. **Phase 2.1**: implement OpenAI Embeddings + Cohere Rerank clients,
-   plug into `EvalRunner::gram_runner` slot.
-2. **Phase 2.2**: implement Bayesian-Hebbian online edge updates from
-   recorded traces.
-3. **Phase 2.3**: implement Tabular GRPO offline batch updates.
-4. **Phase 2.4**: add Active-Inference augmentation (Ambiguity + IG terms).
-5. **Phase 2.5**: dogfood + statistical comparison on full SWE-bench Lite
-   (300 instances).
+## Phase 2.2 — Bayesian-Hebbian γ pipeline (B5) — PoC (2026-05-24)
+
+Phase 2.2 adds five subsystems to the frozen γ pipeline:
+
+| Component | Module | Purpose |
+| --- | --- | --- |
+| Hybrid candidate generation (§6.7.1) | `retrieval::keyword`, `retrieval::candidates` | Union embedding cosine top-N with keyword-grep hits; recover B0 hits that semantic search misses |
+| Coverage-aware fallback (§6.7.4) | `retrieval::pipeline` | Shadow-run B0 keyword grep after B4 retrieval; if coverage < 0.3, supplement with B0-only files |
+| Error message extraction | `retrieval::error_extract` | Parse traceback / assertion messages from problem statements; add referenced files as candidates |
+| AST graph builder (tree-sitter) | `graph::builder` | Build `GraphEngine` from Python source: File → Module → Class/Function nodes with Contains/Calls/Imports edges |
+| PPR candidate generation | `retrieval::candidates` | Task embedding → top-3 seed nodes via ANN → `personalized_pagerank()` → structurally-relevant candidates |
+| Bayesian-Hebbian learning (§6.3) | `learning::hebbian`, `learning::gram_score`, `learning::session` | Beta-posterior edge-weight updates from session traces; Shadow/Canary/Mature mode gating |
+| HebbianGammaRunner (B5) | `eval::agent::hebbian_gamma` | Integrates all above into an `AgentRunner` with online graph weight learning |
+
+### Metric fixes (2026-05-24)
+
+**step_reduction → `Option<f64>`**. Changed the return type of
+`step_reduction_rate()` from `f64` to `Option<f64>`. Returns `None` when
+`gram_steps == 0` (Shadow mode, API failure, etc.) or `default_steps == 0`.
+This prevents the mathematically correct but semantically misleading
+"step_reduction = 100%" display when the gram runner produced no result.
+Files affected:
+
+- `eval::metrics::step_reduction::step_reduction_rate()` — core logic
+- `MetricRecord::step_reduction` — field type changed
+- `MetricSummary::of()` — excludes `None` values via `filter_map`
+- `paired_primary_ci()` — only aggregates rows where both sides are `Some`
+- `eval_runner.rs` — displays "n/a" when `Stat.n == 0`
+
+**HebbianGamma Shadow mode window_size**. The `GramScoreTracker` default
+`window_size = 20` (half_window = 10) caused single-instance or small-batch
+runs to remain in Shadow mode indefinitely, returning no results. When
+`--limit` is specified, `window_size` is now adapted to
+`(limit / 2).max(2).min(20)`.
+
+### PoC measurement (Lite, HebbianGamma live, n=3/5)
+
+3 of 5 Lite instances completed successfully with HebbianGamma; 2 failed due
+to Gemini API monthly spending cap exhaustion. Output file:
+`/tmp/pathgram_eval_lite.json`
+
+| Metric | B0 (default) | B5 (Hebbian γ) |
+| --- | ---: | ---: |
+| recall@5 mean | 0.333 | **0.667** |
+| recall@5 median | 0.000 | **1.000** |
+| step_reduction mean | — | **0.908** |
+| coverage mean | — | 0.333 |
+| n (processed) | 3 | 3 |
+
+Per-instance:
+
+| Instance | B0 recall@5 | B5 recall@5 | step_reduction | coverage | gram_steps |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| django__django-11099 | 0.000 | **1.000** | 0.933 | 1.000 | 1 |
+| sympy__sympy-13647 | 0.000 | 0.000 | 0.917 | 0.000 | 1 |
+| sphinx-doc__sphinx-8721 | 1.000 | **1.000** | 0.875 | 0.000 | 1 |
+
+**Interpretation**:
+
+- **recall@5 improved 2x** (0.333 → 0.667): HebbianGamma preserved B0 hits
+  while recovering an instance B0 missed (`django-11099`). `sympy-13647`
+  failed under both runners.
+- **step_reduction 91%**: compresses B0's 8–15 tool calls into a single
+  retrieval call.
+- **coverage is low (0.33)**: 2/3 instances had zero overlap between B5 and
+  B0 retrieved file sets, suggesting the two strategies are complementary
+  rather than redundant.
+- **n=3 is statistically unreliable**: all Lite instances have
+  golden_file_count=1, constraining recall@5 to {0, 1}. n ≥ 15 is needed
+  for meaningful averages.
+
+### Gemini API monthly spending cap (2026-05-24)
+
+All 6 Verified instances failed with HebbianGamma. Every instance hit:
+
+```
+status=429
+message="Your project has exceeded its monthly spending cap."
+```
+
+This is a permanent block (monthly quota exhausted), not transient rate
+limiting. The 3 successful Lite runs plus the preceding Phase 2.1 B4
+measurement (n=30) collectively consumed the quota.
+
+Mitigation:
+- Raise the cap at the [Google AI Studio Spend page](https://ai.studio/spend)
+- Or continue plumbing tests without API calls via
+  `--gram-runner hebbian-gamma-mock` / `frozen-gamma-mock`
+
+### What's next
+
+- **Phase 2.3**: Tabular GRPO offline batch updates (§6.4), query expansion
+  (§6.7.3), iterative multi-round retrieval (§6.7.2), multi-language
+  tree-sitter, hook execution result caching
+- **Phase 2.4**: Active-Inference augmentation (Ambiguity + IG terms)
+- **Phase 2.5**: Full SWE-bench Lite (300 instances) statistical comparison
 
 See the [Phase 2 design doc][spec] for the full plan.
 
