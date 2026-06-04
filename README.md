@@ -61,8 +61,8 @@ git clone https://github.com/ultraworkers/claw-code
 cd claw-code/rust
 cargo build --workspace
 
-# 2. Set your API key (Anthropic API key — not a Claude subscription)
-export ANTHROPIC_API_KEY="sk-ant-..."
+# 2. Set your API key (DeepSeek is the default low-cost route)
+export DEEPSEEK_API_KEY="sk-..."
 
 # 3. Verify everything is wired correctly
 ./target/debug/claw doctor
@@ -176,7 +176,7 @@ claw --help
 - **Debug vs. release** — If the build is slow, you're in debug mode (default). Add `--release` to `cargo build` for faster runtime, but the build itself will take 5–10 minutes.
 
 > [!NOTE]
-> **Auth:** claw requires an **API key** (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.) — Claude subscription login is not a supported auth path.
+> **Auth:** claw requires an **API key** (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.) — Claude subscription login is not a supported auth path.
 
 Run the workspace test suite after verifying the binary works:
 

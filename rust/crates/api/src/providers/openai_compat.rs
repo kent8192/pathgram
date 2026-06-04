@@ -19,6 +19,7 @@ use super::{preflight_message_request, Provider, ProviderFuture};
 pub const DEFAULT_XAI_BASE_URL: &str = "https://api.x.ai/v1";
 pub const DEFAULT_OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
 pub const DEFAULT_DASHSCOPE_BASE_URL: &str = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+pub const DEFAULT_DEEPSEEK_BASE_URL: &str = "https://api.deepseek.com";
 const REQUEST_ID_HEADER: &str = "request-id";
 const ALT_REQUEST_ID_HEADER: &str = "x-request-id";
 const DEFAULT_INITIAL_BACKOFF: Duration = Duration::from_secs(1);
@@ -41,11 +42,13 @@ pub struct OpenAiCompatConfig {
 const XAI_ENV_VARS: &[&str] = &["XAI_API_KEY"];
 const OPENAI_ENV_VARS: &[&str] = &["OPENAI_API_KEY"];
 const DASHSCOPE_ENV_VARS: &[&str] = &["DASHSCOPE_API_KEY"];
+const DEEPSEEK_ENV_VARS: &[&str] = &["DEEPSEEK_API_KEY"];
 
 // Provider-specific request body size limits in bytes
 const XAI_MAX_REQUEST_BODY_BYTES: usize = 52_428_800; // 50MB
 const OPENAI_MAX_REQUEST_BODY_BYTES: usize = 104_857_600; // 100MB
 const DASHSCOPE_MAX_REQUEST_BODY_BYTES: usize = 6_291_456; // 6MB (observed limit in dogfood)
+const DEEPSEEK_MAX_REQUEST_BODY_BYTES: usize = 104_857_600; // 100MB
 
 impl OpenAiCompatConfig {
     #[must_use]
@@ -85,12 +88,28 @@ impl OpenAiCompatConfig {
         }
     }
 
+    /// `DeepSeek`'s OpenAI-compatible endpoint. The public pricing page lists
+    /// deepseek-v4-flash/pro as materially cheaper than Claude, xAI, and Qwen
+    /// for normal token mixes, so keep it as a first-class route instead of
+    /// forcing users through `OPENAI_BASE_URL`.
+    #[must_use]
+    pub const fn deepseek() -> Self {
+        Self {
+            provider_name: "DeepSeek",
+            api_key_env: "DEEPSEEK_API_KEY",
+            base_url_env: "DEEPSEEK_BASE_URL",
+            default_base_url: DEFAULT_DEEPSEEK_BASE_URL,
+            max_request_body_bytes: DEEPSEEK_MAX_REQUEST_BODY_BYTES,
+        }
+    }
+
     #[must_use]
     pub fn credential_env_vars(self) -> &'static [&'static str] {
         match self.provider_name {
             "xAI" => XAI_ENV_VARS,
             "OpenAI" => OPENAI_ENV_VARS,
             "DashScope" => DASHSCOPE_ENV_VARS,
+            "DeepSeek" => DEEPSEEK_ENV_VARS,
             _ => &[],
         }
     }
@@ -801,7 +820,10 @@ fn strip_routing_prefix(model: &str) -> &str {
         let prefix = &model[..pos];
         // Only strip if the prefix before "/" is a known routing prefix,
         // not if "/" appears in the middle of the model name for other reasons.
-        if matches!(prefix, "openai" | "xai" | "grok" | "qwen" | "kimi") {
+        if matches!(
+            prefix,
+            "openai" | "xai" | "grok" | "qwen" | "kimi" | "deepseek"
+        ) {
             &model[pos + 1..]
         } else {
             model

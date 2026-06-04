@@ -1,7 +1,9 @@
 use std::ffi::OsString;
 use std::sync::{Mutex, OnceLock};
 
-use api::{read_xai_base_url, ApiError, AuthSource, ProviderClient, ProviderKind};
+use api::{
+    read_deepseek_base_url, read_xai_base_url, ApiError, AuthSource, ProviderClient, ProviderKind,
+};
 
 #[test]
 fn provider_client_routes_grok_aliases_through_xai() {
@@ -11,6 +13,36 @@ fn provider_client_routes_grok_aliases_through_xai() {
     let client = ProviderClient::from_model("grok-mini").expect("grok alias should resolve");
 
     assert_eq!(client.provider_kind(), ProviderKind::Xai);
+}
+
+#[test]
+fn provider_client_routes_deepseek_aliases_through_deepseek() {
+    let _lock = env_lock();
+    let _deepseek_api_key = EnvVarGuard::set("DEEPSEEK_API_KEY", Some("deepseek-test-key"));
+
+    let client =
+        ProviderClient::from_model("deepseek-flash").expect("deepseek alias should resolve");
+
+    assert_eq!(client.provider_kind(), ProviderKind::DeepSeek);
+}
+
+#[test]
+fn provider_client_reports_missing_deepseek_credentials_for_deepseek_models() {
+    let _lock = env_lock();
+    let _deepseek_api_key = EnvVarGuard::set("DEEPSEEK_API_KEY", None);
+
+    let error = ProviderClient::from_model("deepseek-v4-pro")
+        .expect_err("deepseek requests without DEEPSEEK_API_KEY should fail fast");
+
+    match error {
+        ApiError::MissingCredentials {
+            provider, env_vars, ..
+        } => {
+            assert_eq!(provider, "DeepSeek");
+            assert_eq!(env_vars, &["DEEPSEEK_API_KEY"]);
+        }
+        other => panic!("expected missing DeepSeek credentials, got {other:?}"),
+    }
 }
 
 #[test]
@@ -53,6 +85,15 @@ fn read_xai_base_url_prefers_env_override() {
     let _xai_base_url = EnvVarGuard::set("XAI_BASE_URL", Some("https://example.xai.test/v1"));
 
     assert_eq!(read_xai_base_url(), "https://example.xai.test/v1");
+}
+
+#[test]
+fn read_deepseek_base_url_prefers_env_override() {
+    let _lock = env_lock();
+    let _deepseek_base_url =
+        EnvVarGuard::set("DEEPSEEK_BASE_URL", Some("https://example.deepseek.test"));
+
+    assert_eq!(read_deepseek_base_url(), "https://example.deepseek.test");
 }
 
 fn env_lock() -> std::sync::MutexGuard<'static, ()> {
