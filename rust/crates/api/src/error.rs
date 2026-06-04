@@ -14,6 +14,11 @@ const CONTEXT_WINDOW_ERROR_MARKERS: &[&str] = &[
     "too many tokens",
     "prompt is too long",
     "input is too long",
+    "input tokens exceed",
+    "configured limit",
+    "messages resulted in",
+    "completion tokens",
+    "prompt tokens",
     "request is too large",
 ];
 
@@ -268,7 +273,10 @@ impl Display for ApiError {
                     }
                 }
                 if let Some(hint) = hint {
-                    write!(f, " — hint: {hint}")?;
+                    // #754: newline-delimited so split_error_hint() can extract the hint
+                    // into the JSON envelope's `hint` field. The em-dash form was a
+                    // single-line string that left hint:null in --output-format json.
+                    write!(f, "\n{hint}")?;
                 }
                 Ok(())
             }
@@ -543,6 +551,26 @@ mod tests {
     }
 
     #[test]
+    fn classifies_openai_configured_limit_errors_as_context_window_failures() {
+        let error = ApiError::Api {
+            status: reqwest::StatusCode::BAD_REQUEST,
+            error_type: Some("invalid_request_error".to_string()),
+            message: Some(
+                "Input tokens exceed the configured limit of 922000 tokens. Your messages resulted in 1860900 tokens. Please reduce the length of the messages."
+                    .to_string(),
+            ),
+            request_id: Some("req_ctx_openai_123".to_string()),
+            body: String::new(),
+            retryable: false,
+            suggested_action: None,
+        };
+
+        assert!(error.is_context_window_failure());
+        assert_eq!(error.safe_failure_class(), "context_window");
+        assert_eq!(error.request_id(), Some("req_ctx_openai_123"));
+    }
+
+    #[test]
     fn missing_credentials_without_hint_renders_the_canonical_message() {
         // given
         let error = ApiError::missing_credentials(
@@ -583,10 +611,15 @@ mod tests {
             rendered.starts_with("missing Anthropic credentials;"),
             "hint should be appended, not replace the base message: {rendered}"
         );
-        let hint_marker = " — hint: I see OPENAI_API_KEY is set — if you meant to use the OpenAI-compat provider, prefix your model name with `openai/` so prefix routing selects it.";
+        // #754: hint is now newline-delimited so split_error_hint() can extract it
+        let hint_text = "I see OPENAI_API_KEY is set — if you meant to use the OpenAI-compat provider, prefix your model name with `openai/` so prefix routing selects it.";
         assert!(
-            rendered.ends_with(hint_marker),
+            rendered.ends_with(hint_text),
             "rendered error should end with the hint: {rendered}"
+        );
+        assert!(
+            rendered.contains('\n'),
+            "rendered error must contain newline separator so split_error_hint works: {rendered}"
         );
         // Classification semantics are unaffected by the presence of a hint.
         assert_eq!(error.safe_failure_class(), "provider_auth");
