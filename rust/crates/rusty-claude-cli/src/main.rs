@@ -56,7 +56,7 @@ use tools::{
     execute_tool, mvp_tool_specs, GlobalToolRegistry, RuntimeToolDefinition, ToolSearchOutput,
 };
 
-const DEFAULT_MODEL: &str = "claude-opus-4-6";
+const DEFAULT_MODEL: &str = "deepseek-v4-flash";
 
 /// #148: Model provenance for `claw status` JSON/text output. Records where
 /// the resolved model string came from so claws don't have to re-read argv
@@ -148,11 +148,7 @@ impl ModelProvenance {
 }
 
 fn max_tokens_for_model(model: &str) -> u32 {
-    if model.contains("opus") {
-        32_000
-    } else {
-        64_000
-    }
+    api::max_tokens_for_model(model)
 }
 // Build-time constants injected by build.rs (fall back to static values when
 // build.rs hasn't run, e.g. in doc-test or unusual toolchain environments).
@@ -1431,6 +1427,8 @@ fn resolve_model_alias(model: &str) -> &str {
         "opus" => "claude-opus-4-6",
         "sonnet" => "claude-sonnet-4-6",
         "haiku" => "claude-haiku-4-5-20251213",
+        "deepseek" | "deepseek-flash" => "deepseek-v4-flash",
+        "deepseek-pro" => "deepseek-v4-pro",
         _ => model,
     }
 }
@@ -1447,7 +1445,7 @@ fn resolve_model_alias_with_config(model: &str) -> String {
 }
 
 /// Validate model syntax at parse time.
-/// Accepts: known aliases (opus, sonnet, haiku) or provider/model pattern.
+/// Accepts: known aliases or provider/model pattern.
 /// Rejects: empty, whitespace-only, strings with spaces, or invalid chars.
 fn validate_model_syntax(model: &str) -> Result<(), String> {
     let trimmed = model.trim();
@@ -1456,7 +1454,10 @@ fn validate_model_syntax(model: &str) -> Result<(), String> {
     }
     // Known aliases are always valid
     match trimmed {
-        "opus" | "sonnet" | "haiku" => return Ok(()),
+        "opus" | "sonnet" | "haiku" | "deepseek" | "deepseek-pro" | "deepseek-flash"
+        | "deepseek-v4-pro" | "deepseek-v4-flash" | "deepseek-chat" | "deepseek-reasoner" => {
+            return Ok(());
+        }
         _ => {}
     }
     // Check for spaces (malformed)
@@ -1471,7 +1472,7 @@ fn validate_model_syntax(model: &str) -> Result<(), String> {
     if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
         // #154: hint if the model looks like it belongs to a different provider
         let mut err_msg = format!(
-            "invalid model syntax: '{}'. Expected provider/model (e.g., anthropic/claude-opus-4-6) or known alias (opus, sonnet, haiku)",
+            "invalid model syntax: '{}'. Expected provider/model (e.g., anthropic/claude-opus-4-6) or known alias (opus, sonnet, haiku, deepseek)",
             trimmed
         );
         if trimmed.starts_with("gpt-") || trimmed.starts_with("gpt_") {
@@ -1486,6 +1487,8 @@ fn validate_model_syntax(model: &str) -> Result<(), String> {
             err_msg.push_str("\nDid you mean `xai/");
             err_msg.push_str(trimmed);
             err_msg.push_str("`? (Requires XAI_API_KEY env var)");
+        } else if trimmed.starts_with("deepseek") {
+            err_msg.push_str("\nDeepSeek models can be used directly, e.g. `deepseek`, `deepseek-v4-pro`, or `deepseek-v4-flash` (requires DEEPSEEK_API_KEY env var)");
         }
         return Err(err_msg);
     }
@@ -1601,6 +1604,7 @@ fn provider_label(kind: ProviderKind) -> &'static str {
         ProviderKind::Anthropic => "anthropic",
         ProviderKind::Xai => "xai",
         ProviderKind::OpenAi => "openai",
+        ProviderKind::DeepSeek => "deepseek",
     }
 }
 
@@ -7696,17 +7700,18 @@ impl AnthropicRuntimeClient {
                     .with_prompt_cache(PromptCache::new(session_id));
                 ApiProviderClient::Anthropic(inner)
             }
-            ProviderKind::Xai | ProviderKind::OpenAi => {
+            ProviderKind::Xai | ProviderKind::OpenAi | ProviderKind::DeepSeek => {
                 // The api crate's `ProviderClient::from_model_with_anthropic_auth`
                 // with `None` for the anthropic auth routes via
                 // `detect_provider_kind` and builds an
                 // `OpenAiCompatClient::from_env` with the matching
-                // `OpenAiCompatConfig` (openai / xai / dashscope).
+                // `OpenAiCompatConfig` (openai / xai / dashscope / deepseek).
                 // That reads the correct API-key env var and BASE_URL
                 // override internally, so this one call covers OpenAI,
-                // OpenRouter, xAI, DashScope, Ollama, and any other
+                // OpenRouter, xAI, DashScope, DeepSeek, Ollama, and any other
                 // OpenAI-compat endpoint users configure via
-                // `OPENAI_BASE_URL` / `XAI_BASE_URL` / `DASHSCOPE_BASE_URL`.
+                // `OPENAI_BASE_URL` / `XAI_BASE_URL` / `DASHSCOPE_BASE_URL`
+                // / `DEEPSEEK_BASE_URL`.
                 ApiProviderClient::from_model_with_anthropic_auth(&resolved_model, None)?
             }
         };
@@ -13251,12 +13256,13 @@ UU conflicted.rs",
     #[test]
     fn build_runtime_runs_plugin_lifecycle_init_and_shutdown() {
         // Serialize access to process-wide env vars so parallel tests that
-        // set/remove ANTHROPIC_API_KEY do not race with this test.
+        // set/remove provider API keys do not race with this test.
         let _guard = env_lock();
         let config_home = temp_dir();
         // Inject a dummy API key so runtime construction succeeds without real credentials.
         // This test only exercises plugin lifecycle (init/shutdown), never calls the API.
-        std::env::set_var("ANTHROPIC_API_KEY", "test-dummy-key-for-plugin-lifecycle");
+        let original_deepseek = std::env::var_os("DEEPSEEK_API_KEY");
+        std::env::set_var("DEEPSEEK_API_KEY", "test-dummy-key-for-plugin-lifecycle");
         let workspace = temp_dir();
         let source_root = temp_dir();
         fs::create_dir_all(&config_home).expect("config home");
@@ -13305,7 +13311,10 @@ UU conflicted.rs",
         let _ = fs::remove_dir_all(config_home);
         let _ = fs::remove_dir_all(workspace);
         let _ = fs::remove_dir_all(source_root);
-        std::env::remove_var("ANTHROPIC_API_KEY");
+        match original_deepseek {
+            Some(value) => std::env::set_var("DEEPSEEK_API_KEY", value),
+            None => std::env::remove_var("DEEPSEEK_API_KEY"),
+        }
     }
 
     #[test]

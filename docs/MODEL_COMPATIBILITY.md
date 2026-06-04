@@ -137,6 +137,23 @@ pub const DEFAULT_DASHSCOPE_BASE_URL: &str = "https://dashscope.aliyuncs.com/com
 
 **Note:** Some Qwen models are also reasoning models (see [Reasoning Models](#reasoning-models-tuning-parameter-stripping) above) and receive both treatments.
 
+---
+
+### DeepSeek Models
+
+**Affected models:** `deepseek`, `deepseek-pro`, `deepseek-flash`, `deepseek-v4-*`, `deepseek-chat`, `deepseek-reasoner`
+
+**Behavior:** Routed to DeepSeek's OpenAI-compatible endpoint (`https://api.deepseek.com`) rather than Anthropic or the generic OpenAI route.
+
+**Rationale:** DeepSeek Flash is the default because it is the cheaper DeepSeek route in the current benchmark and official price table. `deepseek-pro` remains available as an explicit higher-cost model.
+
+**Configuration:**
+```rust
+pub const DEFAULT_DEEPSEEK_BASE_URL: &str = "https://api.deepseek.com";
+```
+
+**Authentication:** Uses `DEEPSEEK_API_KEY` environment variable. `DEEPSEEK_BASE_URL` can override the endpoint.
+
 ## Implementation Details
 
 ### File Location
