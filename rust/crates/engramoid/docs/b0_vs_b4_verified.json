@@ -1,0 +1,387 @@
+{
+  "default_metrics": [
+    {
+      "instance_id": "pydata__xarray-6992",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 28,
+      "gram_steps": null,
+      "recall_at_5": 0.5,
+      "step_reduction": 0.0,
+      "coverage": null,
+      "golden_file_count": 2
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-12682",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 30,
+      "gram_steps": null,
+      "recall_at_5": 1.0,
+      "step_reduction": 0.0,
+      "coverage": null,
+      "golden_file_count": 2
+    },
+    {
+      "instance_id": "astropy__astropy-8707",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 30,
+      "gram_steps": null,
+      "recall_at_5": 0.5,
+      "step_reduction": 0.0,
+      "coverage": null,
+      "golden_file_count": 2
+    },
+    {
+      "instance_id": "pylint-dev__pylint-6528",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 30,
+      "gram_steps": null,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.0,
+      "coverage": null,
+      "golden_file_count": 2
+    },
+    {
+      "instance_id": "django__django-14170",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 21,
+      "gram_steps": null,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.0,
+      "coverage": null,
+      "golden_file_count": 2
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8120",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 30,
+      "gram_steps": null,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.0,
+      "coverage": null,
+      "golden_file_count": 2
+    },
+    {
+      "instance_id": "pylint-dev__pylint-4661",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 30,
+      "gram_steps": null,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.0,
+      "coverage": null,
+      "golden_file_count": 2
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-25479",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 22,
+      "gram_steps": null,
+      "recall_at_5": 1.0,
+      "step_reduction": 0.0,
+      "coverage": null,
+      "golden_file_count": 2
+    },
+    {
+      "instance_id": "django__django-13344",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 30,
+      "gram_steps": null,
+      "recall_at_5": 0.3333333333333333,
+      "step_reduction": 0.0,
+      "coverage": null,
+      "golden_file_count": 3
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-10673",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 30,
+      "gram_steps": null,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.0,
+      "coverage": null,
+      "golden_file_count": 3
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-9461",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 8,
+      "gram_steps": null,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.0,
+      "coverage": null,
+      "golden_file_count": 3
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-14623",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 30,
+      "gram_steps": null,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.0,
+      "coverage": null,
+      "golden_file_count": 3
+    },
+    {
+      "instance_id": "pylint-dev__pylint-6386",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 30,
+      "gram_steps": null,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.0,
+      "coverage": null,
+      "golden_file_count": 4
+    },
+    {
+      "instance_id": "astropy__astropy-13398",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 25,
+      "gram_steps": null,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.0,
+      "coverage": null,
+      "golden_file_count": 4
+    },
+    {
+      "instance_id": "django__django-11532",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 30,
+      "gram_steps": null,
+      "recall_at_5": 0.2,
+      "step_reduction": 0.0,
+      "coverage": null,
+      "golden_file_count": 5
+    }
+  ],
+  "gram_metrics": [
+    {
+      "instance_id": "pydata__xarray-6992",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGamma",
+      "default_steps": 28,
+      "gram_steps": 1,
+      "recall_at_5": 0.5,
+      "step_reduction": 0.9642857142857143,
+      "coverage": 0.0,
+      "golden_file_count": 2
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-12682",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGamma",
+      "default_steps": 30,
+      "gram_steps": 1,
+      "recall_at_5": 0.5,
+      "step_reduction": 0.9666666666666667,
+      "coverage": 0.0,
+      "golden_file_count": 2
+    },
+    {
+      "instance_id": "astropy__astropy-8707",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGamma",
+      "default_steps": 30,
+      "gram_steps": 1,
+      "recall_at_5": 0.5,
+      "step_reduction": 0.9666666666666667,
+      "coverage": 0.0,
+      "golden_file_count": 2
+    },
+    {
+      "instance_id": "pylint-dev__pylint-6528",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGamma",
+      "default_steps": 30,
+      "gram_steps": 1,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.9666666666666667,
+      "coverage": 0.0,
+      "golden_file_count": 2
+    },
+    {
+      "instance_id": "django__django-14170",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGamma",
+      "default_steps": 21,
+      "gram_steps": 1,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.9523809523809523,
+      "coverage": 0.6,
+      "golden_file_count": 2
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8120",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGamma",
+      "default_steps": 30,
+      "gram_steps": 1,
+      "recall_at_5": 0.5,
+      "step_reduction": 0.9666666666666667,
+      "coverage": 0.0,
+      "golden_file_count": 2
+    },
+    {
+      "instance_id": "pylint-dev__pylint-4661",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGamma",
+      "default_steps": 30,
+      "gram_steps": 1,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.9666666666666667,
+      "coverage": 0.4,
+      "golden_file_count": 2
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-25479",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGamma",
+      "default_steps": 22,
+      "gram_steps": 1,
+      "recall_at_5": 0.5,
+      "step_reduction": 0.9545454545454546,
+      "coverage": 0.2,
+      "golden_file_count": 2
+    },
+    {
+      "instance_id": "django__django-13344",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGamma",
+      "default_steps": 30,
+      "gram_steps": 1,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.9666666666666667,
+      "coverage": 0.4,
+      "golden_file_count": 3
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-10673",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGamma",
+      "default_steps": 30,
+      "gram_steps": 1,
+      "recall_at_5": 1.0,
+      "step_reduction": 0.9666666666666667,
+      "coverage": 0.0,
+      "golden_file_count": 3
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-9461",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGamma",
+      "default_steps": 8,
+      "gram_steps": 1,
+      "recall_at_5": 0.3333333333333333,
+      "step_reduction": 0.875,
+      "coverage": 0.0,
+      "golden_file_count": 3
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-14623",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGamma",
+      "default_steps": 30,
+      "gram_steps": 1,
+      "recall_at_5": 0.3333333333333333,
+      "step_reduction": 0.9666666666666667,
+      "coverage": 0.0,
+      "golden_file_count": 3
+    },
+    {
+      "instance_id": "pylint-dev__pylint-6386",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGamma",
+      "default_steps": 30,
+      "gram_steps": 1,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.9666666666666667,
+      "coverage": 0.0,
+      "golden_file_count": 4
+    },
+    {
+      "instance_id": "astropy__astropy-13398",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGamma",
+      "default_steps": 25,
+      "gram_steps": 1,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.96,
+      "coverage": 0.0,
+      "golden_file_count": 4
+    },
+    {
+      "instance_id": "django__django-11532",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGamma",
+      "default_steps": 30,
+      "gram_steps": 1,
+      "recall_at_5": 0.2,
+      "step_reduction": 0.9666666666666667,
+      "coverage": 0.0,
+      "golden_file_count": 5
+    }
+  ],
+  "default_summary": {
+    "recall_at_5": {
+      "mean": 0.23555555555555557,
+      "median": 0.0,
+      "std": 0.3482159114510053,
+      "n": 15
+    },
+    "step_reduction": {
+      "mean": 0.0,
+      "median": 0.0,
+      "std": 0.0,
+      "n": 15
+    },
+    "coverage": null,
+    "golden_file_count": {
+      "mean": 2.7333333333333334,
+      "median": 2.0,
+      "std": 0.9285592184789413,
+      "n": 15
+    }
+  },
+  "gram_summary": {
+    "recall_at_5": {
+      "mean": 0.29111111111111115,
+      "median": 0.3333333333333333,
+      "std": 0.2876383188470128,
+      "n": 15
+    },
+    "step_reduction": {
+      "mean": 0.9581919191919192,
+      "median": 0.9666666666666667,
+      "std": 0.022695926801949855,
+      "n": 15
+    },
+    "coverage": {
+      "mean": 0.10666666666666667,
+      "median": 0.0,
+      "std": 0.19136933459209768,
+      "n": 15
+    },
+    "golden_file_count": {
+      "mean": 2.7333333333333334,
+      "median": 2.0,
+      "std": 0.9285592184789413,
+      "n": 15
+    }
+  },
+  "instance_count": 15,
+  "processed_count": 15,
+  "default_runner_name": "DeterministicBaseline",
+  "gram_runner_name": "FrozenGamma"
+}

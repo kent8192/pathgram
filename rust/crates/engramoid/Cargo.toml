@@ -1,0 +1,46 @@
+[package]
+name = "pathgram"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "pathgram — in-process knowledge-graph + retrieval substrate (ported from kent8192/engramoid Phase 1)"
+
+[lints]
+workspace = true
+
+[features]
+default = []
+eval = ["dep:git2", "dep:regex", "dep:clap", "dep:rand", "dep:walkdir", "dep:tempfile", "dep:reqwest", "dep:tree-sitter", "dep:tree-sitter-python", "dep:tree-sitter-rust", "dep:tree-sitter-typescript", "dep:tree-sitter-go", "dep:tree-sitter-java"]
+eval-offline = []
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { workspace = true }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+petgraph = "0.6"
+thiserror = "1"
+
+# eval feature
+git2 = { version = "0.19", optional = true, default-features = false, features = ["vendored-libgit2", "vendored-openssl", "https"] }
+regex = { version = "1", optional = true }
+clap = { version = "4.5", optional = true, features = ["derive"] }
+rand = { version = "0.8", optional = true }
+walkdir = { version = "2", optional = true }
+tempfile = { version = "3", optional = true }
+reqwest = { version = "0.12", optional = true, default-features = false, features = ["blocking", "json", "rustls-tls"] }
+tree-sitter = { version = "0.24", optional = true }
+tree-sitter-python = { version = "0.23", optional = true }
+tree-sitter-rust = { version = "0.23", optional = true }
+tree-sitter-typescript = { version = "0.23", optional = true }
+tree-sitter-go = { version = "0.23", optional = true }
+tree-sitter-java = { version = "0.23", optional = true }
+
+[dev-dependencies]
+serial_test = "3"
+
+[[bin]]
+name = "pathgram-eval"
+path = "bin/eval_runner.rs"
+required-features = ["eval"]

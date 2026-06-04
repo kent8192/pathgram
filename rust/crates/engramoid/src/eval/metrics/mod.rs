@@ -1,0 +1,306 @@
+use crate::eval::agent::Trace;
+use crate::eval::instance::SweInstance;
+use serde::{Deserialize, Serialize};
+
+pub mod coverage;
+pub mod golden;
+pub mod recall;
+pub mod step_reduction;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MetricRecord {
+    pub instance_id: String,
+    pub default_runner: String,
+    pub gram_runner: Option<String>,
+    pub default_steps: usize,
+    pub gram_steps: Option<usize>,
+    pub recall_at_5: f64,
+    /// `None` when gram_steps is 0 (Shadow mode, API failure, or
+    /// default-only measurement) — no meaningful reduction to report.
+    pub step_reduction: Option<f64>,
+    /// Coverage is only meaningful when comparing two runners (gram blob vs
+    /// default trace's final reading context). When `gram_runner` is `None`,
+    /// coverage would degenerate to 1.0 (self-paired), so we report `None`
+    /// instead to avoid misleading the reader.
+    pub coverage: Option<f64>,
+    /// Number of golden-diff files for this instance. Phase 2 evaluation is
+    /// more meaningful on multi-file instances; recall is mathematically
+    /// constrained to {0, 1} when this is 1.
+    pub golden_file_count: usize,
+    /// Wall-clock time for the gram runner in milliseconds. `None` for
+    /// default-only measurements (no retrieval pipeline to time).
+    pub wall_time_ms: Option<u64>,
+    /// Estimated API cost in USD. Based on embedding + rerank token counts.
+    /// `None` for default-only or mock-scorer runs.
+    pub api_cost_estimate: Option<f64>,
+    /// Number of chunks processed by the retrieval pipeline. `None` for
+    /// default-only measurements.
+    pub chunk_count: Option<usize>,
+}
+
+/// Supplementary timing/cost info for a single runner invocation.
+#[derive(Debug, Clone, Default)]
+pub struct RunnerTiming {
+    pub wall_time_ms: Option<u64>,
+    pub api_cost_estimate: Option<f64>,
+    pub chunk_count: Option<usize>,
+}
+
+/// Build a `MetricRecord` from one trace.
+///
+/// `coverage_reference_trace` supplies the C-label `final_reading_context`.
+/// When measuring the default runner, pass `&trace` itself; when measuring a
+/// gram runner, pass the default runner's trace.
+#[must_use]
+pub fn compute_metrics(
+    trace: &Trace,
+    instance: &SweInstance,
+    coverage_reference_trace: &Trace,
+    default_runner_name: &str,
+    gram_runner_name: Option<String>,
+    timing: RunnerTiming,
+) -> MetricRecord {
+    let golden = golden::modified_files(&instance.patch);
+    let golden_file_count = golden.len();
+    let retrieved = trace.distinct_accessed_files();
+    let recall = recall::recall_at_k(&retrieved, &golden, 5);
+
+    let default_steps = coverage_reference_trace.step_count();
+    let is_gram = gram_runner_name.is_some();
+    let (gram_steps, step_red) = if is_gram {
+        let gs = trace.step_count();
+        (Some(gs), step_reduction::step_reduction_rate(default_steps, gs))
+    } else {
+        (None, None)
+    };
+
+    // Coverage is only well-defined when the gram blob is measured against
+    // a *different* runner's final reading context. Self-paired coverage is
+    // trivially 1.0 (final_reading_context ⊆ distinct_accessed_files), so we
+    // emit None to avoid the degenerate signal.
+    let cov = if is_gram {
+        Some(coverage::coverage(&retrieved, &coverage_reference_trace.final_reading_context))
+    } else {
+        None
+    };
+
+    MetricRecord {
+        instance_id: instance.instance_id.clone(),
+        default_runner: default_runner_name.to_string(),
+        gram_runner: gram_runner_name,
+        default_steps,
+        gram_steps,
+        recall_at_5: recall,
+        step_reduction: step_red,
+        coverage: cov,
+        golden_file_count,
+        wall_time_ms: timing.wall_time_ms,
+        api_cost_estimate: timing.api_cost_estimate,
+        chunk_count: timing.chunk_count,
+    }
+}
+
+/// Compute one MetricRecord per instance.
+///
+/// If `gram_traces` is `Some`, it must match `default_traces` in length and
+/// pair by index; the returned records measure the gram runner against the
+/// default runner's coverage reference. If `None`, records measure the
+/// default runner self-paired.
+#[must_use]
+pub fn compute_batch(
+    default_traces: &[Trace],
+    gram_traces: Option<&[Trace]>,
+    instances: &[SweInstance],
+    default_runner_name: &str,
+    gram_runner_name: Option<&str>,
+    timings: Option<&[RunnerTiming]>,
+) -> Vec<MetricRecord> {
+    let n = default_traces.len().min(instances.len());
+    if let Some(gt) = gram_traces {
+        assert_eq!(gt.len(), n, "gram trace count must match default trace count");
+    }
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let default_t = &default_traces[i];
+        let inst = &instances[i];
+        if let Some(gt) = gram_traces {
+            let timing = timings
+                .and_then(|t| t.get(i))
+                .cloned()
+                .unwrap_or_default();
+            out.push(compute_metrics(
+                &gt[i],
+                inst,
+                default_t,
+                default_runner_name,
+                gram_runner_name.map(String::from),
+                timing,
+            ));
+        } else {
+            out.push(compute_metrics(
+                default_t,
+                inst,
+                default_t,
+                default_runner_name,
+                None,
+                RunnerTiming::default(),
+            ));
+        }
+    }
+    out
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Stat {
+    pub mean: f64,
+    pub median: f64,
+    pub std: f64,
+    pub n: usize,
+}
+
+impl Stat {
+    #[must_use]
+    pub fn of(values: &[f64]) -> Self {
+        let n = values.len();
+        if n == 0 {
+            return Stat {
+                mean: 0.0,
+                median: 0.0,
+                std: 0.0,
+                n: 0,
+            };
+        }
+        #[allow(clippy::cast_precision_loss)]
+        let nf = n as f64;
+        let mean = values.iter().sum::<f64>() / nf;
+        let mut sorted = values.to_vec();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let median = if n % 2 == 1 {
+            sorted[n / 2]
+        } else {
+            (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0
+        };
+        let var = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / nf;
+        Stat {
+            mean,
+            median,
+            std: var.sqrt(),
+            n,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetricSummary {
+    pub recall_at_5: Stat,
+    pub step_reduction: Stat,
+    pub coverage: Option<Stat>,
+    pub golden_file_count: Stat,
+}
+
+impl MetricSummary {
+    /// Aggregate over `MetricRecord`s. `Coverage` becomes `None` if no record
+    /// has a coverage value (e.g. all measurements are default-only).
+    #[must_use]
+    pub fn of(records: &[MetricRecord]) -> Self {
+        let recall: Vec<f64> = records.iter().map(|r| r.recall_at_5).collect();
+        let step: Vec<f64> = records.iter().filter_map(|r| r.step_reduction).collect();
+        let cov: Vec<f64> = records.iter().filter_map(|r| r.coverage).collect();
+        #[allow(clippy::cast_precision_loss)]
+        let gfc: Vec<f64> = records
+            .iter()
+            .map(|r| r.golden_file_count as f64)
+            .collect();
+        MetricSummary {
+            recall_at_5: Stat::of(&recall),
+            step_reduction: Stat::of(&step),
+            coverage: if cov.is_empty() { None } else { Some(Stat::of(&cov)) },
+            golden_file_count: Stat::of(&gfc),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metric_record_round_trips_json_default_only() {
+        let r = MetricRecord {
+            instance_id: "x".into(),
+            default_runner: "DeterministicBaseline".into(),
+            gram_runner: None,
+            default_steps: 10,
+            gram_steps: None,
+            recall_at_5: 0.6,
+            step_reduction: None,
+            coverage: None,
+            golden_file_count: 1,
+            wall_time_ms: None,
+            api_cost_estimate: None,
+            chunk_count: None,
+        };
+        let s = serde_json::to_string(&r).unwrap();
+        let back: MetricRecord = serde_json::from_str(&s).unwrap();
+        assert_eq!(back, r);
+    }
+
+    #[test]
+    fn metric_record_round_trips_json_with_gram() {
+        let r = MetricRecord {
+            instance_id: "x".into(),
+            default_runner: "Default".into(),
+            gram_runner: Some("Gram".into()),
+            default_steps: 13,
+            gram_steps: Some(1),
+            recall_at_5: 0.66,
+            step_reduction: Some((13.0 - 1.0) / 13.0),
+            coverage: Some(0.8),
+            golden_file_count: 3,
+            wall_time_ms: Some(1500),
+            api_cost_estimate: Some(0.0042),
+            chunk_count: Some(45),
+        };
+        let s = serde_json::to_string(&r).unwrap();
+        let back: MetricRecord = serde_json::from_str(&s).unwrap();
+        // f64 round-trips through JSON with possible last-bit drift; compare
+        // structurally with epsilon on the floats.
+        assert_eq!(back.instance_id, r.instance_id);
+        assert_eq!(back.default_runner, r.default_runner);
+        assert_eq!(back.gram_runner, r.gram_runner);
+        assert_eq!(back.default_steps, r.default_steps);
+        assert_eq!(back.gram_steps, r.gram_steps);
+        assert!((back.recall_at_5 - r.recall_at_5).abs() < 1e-9);
+        assert!(
+            (back.step_reduction.unwrap() - r.step_reduction.unwrap()).abs() < 1e-9
+        );
+        assert!((back.coverage.unwrap() - r.coverage.unwrap()).abs() < 1e-9);
+        assert_eq!(back.golden_file_count, r.golden_file_count);
+    }
+
+    #[test]
+    fn summary_computes_mean_median_std() {
+        let recs: Vec<MetricRecord> = (1..=5)
+            .map(|i| MetricRecord {
+                instance_id: format!("x{i}"),
+                default_runner: "D".into(),
+                gram_runner: None,
+                default_steps: 0,
+                gram_steps: None,
+                recall_at_5: f64::from(i) / 10.0,
+                step_reduction: None,
+                coverage: None,
+                golden_file_count: 1,
+                wall_time_ms: None,
+                api_cost_estimate: None,
+                chunk_count: None,
+            })
+            .collect();
+        let s = MetricSummary::of(&recs);
+        assert!((s.recall_at_5.mean - 0.3).abs() < 1e-9);
+        assert!((s.recall_at_5.median - 0.3).abs() < 1e-9);
+        assert!(s.coverage.is_none(), "coverage skipped when no gram runner");
+        assert!(s.recall_at_5.std > 0.0);
+        assert_eq!(s.golden_file_count.mean, 1.0);
+    }
+}
