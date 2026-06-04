@@ -4,8 +4,8 @@
 //! - `gemini_embed::GeminiEmbedder` — gemini-embedding-001 @ 768 dims (Matryoshka)
 //! - `cohere_rerank::CohereReranker` — rerank-english-v3.0
 //!
-//! `openai_embed::OpenAiEmbedder` is retained for parity / future paired
-//! runs but is no longer wired into the CLI.
+//! `openai_embed::OpenAiEmbedder` supports OpenAI embedding-only paired
+//! runs through `pathgram-eval --gram-runner frozen-gamma-openai`.
 //!
 //! Each implementation exposes a small trait so unit tests and offline
 //! runs can plug in deterministic mocks.

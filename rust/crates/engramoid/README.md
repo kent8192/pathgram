@@ -272,6 +272,74 @@ The CLI prints the two summaries plus a paired bootstrap CI on the three
 primary metrics. Reports include per-instance records suitable for
 ablations and downstream analysis.
 
+### Running the OpenAI Embedding semantic-chunk measurement
+
+For an OpenAI-embedding-only semantic chunk search run, use
+`--gram-runner frozen-gamma-openai`. This keeps the B0 deterministic
+baseline unchanged, uses OpenAI for embeddings, and preserves candidate
+order instead of calling a separate reranker. That isolates the semantic
+chunk search signal from a second provider.
+
+```bash
+export OPENAI_API_KEY='...'
+
+cd rust
+
+cargo run --features eval --bin pathgram-eval --release -- \
+    --data crates/engramoid/tests/eval/fixtures/swe_bench_lite_subset.jsonl \
+    --out  docs/b0_vs_openai_semantic_lite.json \
+    --gram-runner frozen-gamma-openai \
+    --openai-embedding-model text-embedding-3-small \
+    --openai-embedding-dimensions 1024
+```
+
+This measures retrieval quality and tool-call compression only:
+`recall@5`, `step_reduction`, `coverage`, and paired bootstrap CIs
+against the deterministic baseline. It does not measure DeepSeek V4 Pro
+patch success; that requires a separate LLM-backed agent runner and a
+SWE-bench execution harness.
+
+### OpenAI Embedding semantic-chunk results (2026-06-05)
+
+Embedder: OpenAI `text-embedding-3-small` @ 1024 dimensions. Reranker:
+candidate order preservation (no second provider). Long chunk texts are
+truncated before embedding to stay under OpenAI's per-input embedding
+limit. Reports persisted as `docs/b0_vs_openai_semantic_lite.json` and
+`docs/b0_vs_openai_semantic_verified.json`.
+
+| Metric | Lite fixture | Verified fixture | Combined |
+| --- | ---: | ---: | ---: |
+| processed | 3 / 5 | 6 / 6 | 9 / 11 |
+| skipped | 2 synthetic fixtures | 0 | 2 |
+| B0 recall@5 mean | 0.333 | 0.228 | 0.263 |
+| OpenAI semantic recall@5 mean | **0.667** | **0.289** | **0.415** |
+| recall@5 delta | +0.333 | +0.061 | +0.152 |
+| step_reduction mean | 0.908 | 0.966 | 0.947 |
+| coverage mean | 0.267 | 0.100 | 0.156 |
+| golden_files mean | 1.0 | 2.8 | 2.2 |
+| gram wall time mean | 29.0 s | 34.3 s | 32.6 s |
+
+Paired bootstrap CIs (1000 resamples, 95%):
+
+| Dataset | step_reduction CI | recall@5 delta CI |
+| --- | --- | --- |
+| Lite | [0.000, 0.000] | [0.000, 1.000] |
+| Verified | [0.000, 0.000] | [-0.139, 0.278] |
+
+Interpretation:
+
+- OpenAI semantic chunk search improves mean recall on both fixtures, but
+  the sample is too small for a strong statistical claim. Verified's CI
+  crosses zero.
+- Step reduction is structurally high because the semantic runner returns
+  one retrieval call versus B0's multi-step keyword/read walk.
+- The wall time is not yet "efficient" in the operational sense: this
+  implementation embeds repo chunks during each run and has no persistent
+  embedding cache. The search step is compact; the indexing step is still
+  expensive.
+- DeepSeek V4 Pro is not represented in these numbers. These are retrieval
+  metrics only, not patch-success metrics.
+
 ### Live measurement results (2026-05-22, n=30 = 15 Lite + 15 Verified)
 
 Embedder: Gemini `gemini-embedding-001` @ 768d (Matryoshka). Reranker:
