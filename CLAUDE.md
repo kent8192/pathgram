@@ -19,3 +19,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Prefer small, reviewable changes and keep generated bootstrap files aligned with actual repo workflows.
 - Keep shared defaults in `.claude.json`; reserve `.claude/settings.local.json` for machine-local overrides.
 - Do not overwrite existing `CLAUDE.md` content automatically; update it intentionally when repo workflows change.
+- Never create GitHub issues in the upstream/fork-source repository for this project. If the fork's issue tracker is disabled or unavailable, do not fall back to upstream; report the limitation to the user and ask where to file or record the issue locally.
