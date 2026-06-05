@@ -286,8 +286,8 @@ export OPENAI_API_KEY='...'
 cd rust
 
 cargo run --features eval --bin pathgram-eval --release -- \
-    --data crates/engramoid/tests/eval/fixtures/swe_bench_lite_subset.jsonl \
-    --out  docs/b0_vs_openai_semantic_lite.json \
+    --data crates/engramoid/docs/openai_semantic_n33_fixture.jsonl \
+    --out  docs/b0_vs_openai_semantic_n33.json \
     --gram-runner frozen-gamma-openai \
     --openai-embedding-model text-embedding-3-small \
     --openai-embedding-dimensions 1024
@@ -304,33 +304,46 @@ SWE-bench execution harness.
 Embedder: OpenAI `text-embedding-3-small` @ 1024 dimensions. Reranker:
 candidate order preservation (no second provider). Long chunk texts are
 truncated before embedding to stay under OpenAI's per-input embedding
-limit. Reports persisted as `docs/b0_vs_openai_semantic_lite.json` and
-`docs/b0_vs_openai_semantic_verified.json`.
+limit, and retry/backoff handles transient OpenAI 429/5xx responses.
 
-| Metric | Lite fixture | Verified fixture | Combined |
-| --- | ---: | ---: | ---: |
-| processed | 3 / 5 | 6 / 6 | 9 / 11 |
-| skipped | 2 synthetic fixtures | 0 | 2 |
-| B0 recall@5 mean | 0.333 | 0.228 | 0.263 |
-| OpenAI semantic recall@5 mean | **0.667** | **0.289** | **0.415** |
-| recall@5 delta | +0.333 | +0.061 | +0.152 |
-| step_reduction mean | 0.908 | 0.966 | 0.947 |
-| coverage mean | 0.267 | 0.100 | 0.156 |
-| golden_files mean | 1.0 | 2.8 | 2.2 |
-| gram wall time mean | 29.0 s | 34.3 s | 32.6 s |
+The persisted fixture is
+`docs/openai_semantic_n33_fixture.jsonl`: 15 SWE-bench Lite instances plus
+18 SWE-bench Verified multi-file instances, sampled with seed 42. These
+are 33 unique SWE-bench instances, not 33 repeated trials of the same
+prompt. The report is persisted as
+`docs/b0_vs_openai_semantic_n33.json`.
 
-Paired bootstrap CIs (1000 resamples, 95%):
+| Metric | Combined n=33 |
+| --- | ---: |
+| processed | **33 / 33** |
+| skipped | 0 |
+| B0 recall@5 mean | 0.256 |
+| OpenAI semantic recall@5 mean | **0.335** |
+| recall@5 delta | +0.079 |
+| step_reduction mean | 0.953 |
+| coverage mean | 0.145 |
+| golden_files mean | 1.9 |
+| OpenAI semantic wall time mean | 28.5 s |
+| OpenAI semantic wall time total | 15 min 41 s |
 
-| Dataset | step_reduction CI | recall@5 delta CI |
-| --- | --- | --- |
-| Lite | [0.000, 0.000] | [0.000, 1.000] |
-| Verified | [0.000, 0.000] | [-0.139, 0.278] |
+Diagnostic split:
+
+| Slice | n | B0 recall@5 | OpenAI semantic recall@5 | delta | step_reduction | coverage |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Lite | 15 | 0.333 | 0.400 | +0.067 | 0.956 | 0.173 |
+| Verified multi-file | 18 | 0.192 | 0.281 | +0.090 | 0.950 | 0.122 |
+
+The runner stdout for this execution reported a 1000-resample 95% paired
+bootstrap CI of `[-0.093, 0.263]` for recall@5 delta and `[0.000, 0.000]`
+for `step_reduction` delta. The JSON report currently persists summaries
+and per-instance rows but not the CI object, so the durable source of
+truth is the report table above.
 
 Interpretation:
 
-- OpenAI semantic chunk search improves mean recall on both fixtures, but
-  the sample is too small for a strong statistical claim. Verified's CI
-  crosses zero.
+- OpenAI semantic chunk search improves mean recall on the n=33 mean, but
+  the recall CI crosses zero. Treat this as a positive retrieval signal,
+  not a statistically settled win.
 - Step reduction is structurally high because the semantic runner returns
   one retrieval call versus B0's multi-step keyword/read walk.
 - The wall time is not yet "efficient" in the operational sense: this
