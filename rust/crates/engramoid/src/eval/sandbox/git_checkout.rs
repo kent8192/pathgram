@@ -69,8 +69,7 @@ impl RepoCache {
                 .clone(repo_url, &cache_path)?;
         }
         // Local clone from the bare cache is fast (file copies, no network).
-        git2::build::RepoBuilder::new()
-            .clone(&format!("file://{}", cache_path.display()), dest)?;
+        git2::build::RepoBuilder::new().clone(&format!("file://{}", cache_path.display()), dest)?;
         let repo = git2::Repository::open(dest)?;
         let oid = git2::Oid::from_str(commit_sha)
             .map_err(|_| CheckoutError::CommitNotFound(commit_sha.into()))?;

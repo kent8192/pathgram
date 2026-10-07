@@ -115,6 +115,31 @@ impl Reranker for MockReranker {
     }
 }
 
+/// Reranker that preserves the incoming candidate order.
+///
+/// This is useful for live embedding-only measurements where the candidate
+/// source already sorted embedding hits by cosine similarity and we do not
+/// want to introduce a second paid reranking provider.
+pub struct CandidateOrderReranker;
+
+impl Reranker for CandidateOrderReranker {
+    fn rerank(
+        &self,
+        _query: &str,
+        documents: &[String],
+        top_k: usize,
+    ) -> Result<Vec<(usize, f32)>, ScorerError> {
+        let n = documents.len().min(top_k);
+        Ok((0..n)
+            .map(|i| {
+                #[allow(clippy::cast_precision_loss)]
+                let score = 1.0 - (i as f32) / (documents.len().max(1) as f32);
+                (i, score)
+            })
+            .collect())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -132,6 +157,13 @@ mod tests {
     fn mock_reranker_empty_docs() {
         let out = MockReranker.rerank("x", &[], 5).unwrap();
         assert!(out.is_empty());
+    }
+
+    #[test]
+    fn candidate_order_reranker_preserves_candidate_order() {
+        let docs = vec!["first".into(), "second".into(), "third".into()];
+        let out = CandidateOrderReranker.rerank("x", &docs, 2).unwrap();
+        assert_eq!(out, vec![(0, 1.0), (1, 1.0 - 1.0 / 3.0)]);
     }
 
     #[test]

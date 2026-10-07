@@ -1,0 +1,141 @@
+{
+  "default_metrics": [
+    {
+      "instance_id": "django__django-11099",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 15,
+      "gram_steps": null,
+      "recall_at_5": 0.0,
+      "step_reduction": null,
+      "coverage": null,
+      "golden_file_count": 1,
+      "wall_time_ms": null,
+      "api_cost_estimate": null,
+      "chunk_count": null
+    },
+    {
+      "instance_id": "sympy__sympy-13647",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 12,
+      "gram_steps": null,
+      "recall_at_5": 0.0,
+      "step_reduction": null,
+      "coverage": null,
+      "golden_file_count": 1,
+      "wall_time_ms": null,
+      "api_cost_estimate": null,
+      "chunk_count": null
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8721",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 8,
+      "gram_steps": null,
+      "recall_at_5": 1.0,
+      "step_reduction": null,
+      "coverage": null,
+      "golden_file_count": 1,
+      "wall_time_ms": null,
+      "api_cost_estimate": null,
+      "chunk_count": null
+    }
+  ],
+  "gram_metrics": [
+    {
+      "instance_id": "django__django-11099",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGammaOpenAi",
+      "default_steps": 15,
+      "gram_steps": 1,
+      "recall_at_5": 1.0,
+      "step_reduction": 0.9333333333333333,
+      "coverage": 0.8,
+      "golden_file_count": 1,
+      "wall_time_ms": 35421,
+      "api_cost_estimate": null,
+      "chunk_count": 10
+    },
+    {
+      "instance_id": "sympy__sympy-13647",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGammaOpenAi",
+      "default_steps": 12,
+      "gram_steps": 1,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.9166666666666666,
+      "coverage": 0.0,
+      "golden_file_count": 1,
+      "wall_time_ms": 39992,
+      "api_cost_estimate": null,
+      "chunk_count": 10
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8721",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGammaOpenAi",
+      "default_steps": 8,
+      "gram_steps": 1,
+      "recall_at_5": 1.0,
+      "step_reduction": 0.875,
+      "coverage": 0.0,
+      "golden_file_count": 1,
+      "wall_time_ms": 11702,
+      "api_cost_estimate": null,
+      "chunk_count": 7
+    }
+  ],
+  "default_summary": {
+    "recall_at_5": {
+      "mean": 0.3333333333333333,
+      "median": 0.0,
+      "std": 0.4714045207910317,
+      "n": 3
+    },
+    "step_reduction": {
+      "mean": 0.0,
+      "median": 0.0,
+      "std": 0.0,
+      "n": 0
+    },
+    "coverage": null,
+    "golden_file_count": {
+      "mean": 1.0,
+      "median": 1.0,
+      "std": 0.0,
+      "n": 3
+    }
+  },
+  "gram_summary": {
+    "recall_at_5": {
+      "mean": 0.6666666666666666,
+      "median": 1.0,
+      "std": 0.4714045207910317,
+      "n": 3
+    },
+    "step_reduction": {
+      "mean": 0.9083333333333333,
+      "median": 0.9166666666666666,
+      "std": 0.02453266907313291,
+      "n": 3
+    },
+    "coverage": {
+      "mean": 0.26666666666666666,
+      "median": 0.0,
+      "std": 0.3771236166328254,
+      "n": 3
+    },
+    "golden_file_count": {
+      "mean": 1.0,
+      "median": 1.0,
+      "std": 0.0,
+      "n": 3
+    }
+  },
+  "instance_count": 5,
+  "processed_count": 3,
+  "default_runner_name": "DeterministicBaseline",
+  "gram_runner_name": "FrozenGammaOpenAi"
+}

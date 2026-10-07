@@ -92,73 +92,134 @@ fn default_domain_terms() -> DomainMap {
     m.insert(
         "django",
         vec![
-            "orm", "queryset", "model", "migration", "admin", "form",
-            "view", "template", "middleware", "url", "signal", "manager",
-            "field", "validator", "serializer",
+            "orm",
+            "queryset",
+            "model",
+            "migration",
+            "admin",
+            "form",
+            "view",
+            "template",
+            "middleware",
+            "url",
+            "signal",
+            "manager",
+            "field",
+            "validator",
+            "serializer",
         ],
     );
     m.insert(
         "sympy",
         vec![
-            "symbolic", "expression", "simplify", "solve", "integral",
-            "derivative", "matrix", "function", "assumption", "evalf",
-            "subs", "expand",
+            "symbolic",
+            "expression",
+            "simplify",
+            "solve",
+            "integral",
+            "derivative",
+            "matrix",
+            "function",
+            "assumption",
+            "evalf",
+            "subs",
+            "expand",
         ],
     );
     m.insert(
         "sphinx",
         vec![
-            "directive", "role", "domain", "builder", "extension",
-            "parser", "transform", "node", "translator",
+            "directive",
+            "role",
+            "domain",
+            "builder",
+            "extension",
+            "parser",
+            "transform",
+            "node",
+            "translator",
         ],
     );
     m.insert(
         "flask",
         vec![
-            "route", "blueprint", "request", "response", "session",
-            "jinja", "template", "url_for",
+            "route",
+            "blueprint",
+            "request",
+            "response",
+            "session",
+            "jinja",
+            "template",
+            "url_for",
         ],
     );
     m.insert(
         "scikit",
         vec![
-            "estimator", "predictor", "classifier", "regressor",
-            "pipeline", "transformer", "preprocessing",
+            "estimator",
+            "predictor",
+            "classifier",
+            "regressor",
+            "pipeline",
+            "transformer",
+            "preprocessing",
         ],
     );
     m.insert(
         "pytest",
         vec![
-            "fixture", "mark", "parametrize", "conftest", "hook",
-            "plugin", "assertion",
+            "fixture",
+            "mark",
+            "parametrize",
+            "conftest",
+            "hook",
+            "plugin",
+            "assertion",
         ],
     );
     m.insert(
         "matplotlib",
         vec![
-            "axes", "figure", "plot", "artist", "renderer", "backend",
-            "transform", "legend",
+            "axes",
+            "figure",
+            "plot",
+            "artist",
+            "renderer",
+            "backend",
+            "transform",
+            "legend",
         ],
     );
     m.insert(
         "requests",
         vec![
-            "session", "adapter", "response", "header", "cookie",
-            "auth", "redirect",
+            "session", "adapter", "response", "header", "cookie", "auth", "redirect",
         ],
     );
     m.insert(
         "sqlalchemy",
         vec![
-            "session", "query", "mapper", "table", "column", "engine",
-            "metadata", "relationship",
+            "session",
+            "query",
+            "mapper",
+            "table",
+            "column",
+            "engine",
+            "metadata",
+            "relationship",
         ],
     );
     m.insert(
         "pandas",
         vec![
-            "dataframe", "series", "index", "groupby", "merge", "pivot",
-            "resample", "rolling",
+            "dataframe",
+            "series",
+            "index",
+            "groupby",
+            "merge",
+            "pivot",
+            "resample",
+            "rolling",
         ],
     );
     m

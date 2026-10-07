@@ -71,12 +71,7 @@ impl AgentRunner for HebbianGammaRunner<'_> {
         // Treat each retrieval as a nominal success; real success/failure feedback
         // would come from an external process_session call after patch evaluation.
         if accessed.len() >= 2 {
-            process_session(
-                &mut self.graph.borrow_mut(),
-                &accessed,
-                true,
-                self.eta,
-            );
+            process_session(&mut self.graph.borrow_mut(), &accessed, true, self.eta);
         }
 
         // Compute gram score from the CoAccessed edges now present in the graph.

@@ -1,0 +1,225 @@
+{
+  "default_metrics": [
+    {
+      "instance_id": "astropy__astropy-14369",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 30,
+      "gram_steps": null,
+      "recall_at_5": 0.0,
+      "step_reduction": null,
+      "coverage": null,
+      "golden_file_count": 2,
+      "wall_time_ms": null,
+      "api_cost_estimate": null,
+      "chunk_count": null
+    },
+    {
+      "instance_id": "astropy__astropy-8707",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 30,
+      "gram_steps": null,
+      "recall_at_5": 0.5,
+      "step_reduction": null,
+      "coverage": null,
+      "golden_file_count": 2,
+      "wall_time_ms": null,
+      "api_cost_estimate": null,
+      "chunk_count": null
+    },
+    {
+      "instance_id": "django__django-10554",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 26,
+      "gram_steps": null,
+      "recall_at_5": 0.0,
+      "step_reduction": null,
+      "coverage": null,
+      "golden_file_count": 2,
+      "wall_time_ms": null,
+      "api_cost_estimate": null,
+      "chunk_count": null
+    },
+    {
+      "instance_id": "django__django-11400",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 30,
+      "gram_steps": null,
+      "recall_at_5": 0.6666666666666666,
+      "step_reduction": null,
+      "coverage": null,
+      "golden_file_count": 3,
+      "wall_time_ms": null,
+      "api_cost_estimate": null,
+      "chunk_count": null
+    },
+    {
+      "instance_id": "django__django-11734",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 30,
+      "gram_steps": null,
+      "recall_at_5": 0.0,
+      "step_reduction": null,
+      "coverage": null,
+      "golden_file_count": 3,
+      "wall_time_ms": null,
+      "api_cost_estimate": null,
+      "chunk_count": null
+    },
+    {
+      "instance_id": "django__django-11532",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": null,
+      "default_steps": 30,
+      "gram_steps": null,
+      "recall_at_5": 0.2,
+      "step_reduction": null,
+      "coverage": null,
+      "golden_file_count": 5,
+      "wall_time_ms": null,
+      "api_cost_estimate": null,
+      "chunk_count": null
+    }
+  ],
+  "gram_metrics": [
+    {
+      "instance_id": "astropy__astropy-14369",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGammaOpenAi",
+      "default_steps": 30,
+      "gram_steps": 1,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.9666666666666667,
+      "coverage": 0.0,
+      "golden_file_count": 2,
+      "wall_time_ms": 33971,
+      "api_cost_estimate": null,
+      "chunk_count": 9
+    },
+    {
+      "instance_id": "astropy__astropy-8707",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGammaOpenAi",
+      "default_steps": 30,
+      "gram_steps": 1,
+      "recall_at_5": 0.5,
+      "step_reduction": 0.9666666666666667,
+      "coverage": 0.0,
+      "golden_file_count": 2,
+      "wall_time_ms": 32836,
+      "api_cost_estimate": null,
+      "chunk_count": 7
+    },
+    {
+      "instance_id": "django__django-10554",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGammaOpenAi",
+      "default_steps": 26,
+      "gram_steps": 1,
+      "recall_at_5": 0.5,
+      "step_reduction": 0.9615384615384616,
+      "coverage": 0.4,
+      "golden_file_count": 2,
+      "wall_time_ms": 34200,
+      "api_cost_estimate": null,
+      "chunk_count": 6
+    },
+    {
+      "instance_id": "django__django-11400",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGammaOpenAi",
+      "default_steps": 30,
+      "gram_steps": 1,
+      "recall_at_5": 0.3333333333333333,
+      "step_reduction": 0.9666666666666667,
+      "coverage": 0.0,
+      "golden_file_count": 3,
+      "wall_time_ms": 36140,
+      "api_cost_estimate": null,
+      "chunk_count": 7
+    },
+    {
+      "instance_id": "django__django-11734",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGammaOpenAi",
+      "default_steps": 30,
+      "gram_steps": 1,
+      "recall_at_5": 0.0,
+      "step_reduction": 0.9666666666666667,
+      "coverage": 0.2,
+      "golden_file_count": 3,
+      "wall_time_ms": 34673,
+      "api_cost_estimate": null,
+      "chunk_count": 8
+    },
+    {
+      "instance_id": "django__django-11532",
+      "default_runner": "DeterministicBaseline",
+      "gram_runner": "FrozenGammaOpenAi",
+      "default_steps": 30,
+      "gram_steps": 1,
+      "recall_at_5": 0.4,
+      "step_reduction": 0.9666666666666667,
+      "coverage": 0.0,
+      "golden_file_count": 5,
+      "wall_time_ms": 34038,
+      "api_cost_estimate": null,
+      "chunk_count": 4
+    }
+  ],
+  "default_summary": {
+    "recall_at_5": {
+      "mean": 0.22777777777777775,
+      "median": 0.1,
+      "std": 0.2655648533937138,
+      "n": 6
+    },
+    "step_reduction": {
+      "mean": 0.0,
+      "median": 0.0,
+      "std": 0.0,
+      "n": 0
+    },
+    "coverage": null,
+    "golden_file_count": {
+      "mean": 2.8333333333333335,
+      "median": 2.5,
+      "std": 1.0671873729054748,
+      "n": 6
+    }
+  },
+  "gram_summary": {
+    "recall_at_5": {
+      "mean": 0.2888888888888889,
+      "median": 0.3666666666666667,
+      "std": 0.21227747971714223,
+      "n": 6
+    },
+    "step_reduction": {
+      "mean": 0.9658119658119658,
+      "median": 0.9666666666666667,
+      "std": 0.0019111692115382748,
+      "n": 6
+    },
+    "coverage": {
+      "mean": 0.10000000000000002,
+      "median": 0.0,
+      "std": 0.15275252316519466,
+      "n": 6
+    },
+    "golden_file_count": {
+      "mean": 2.8333333333333335,
+      "median": 2.5,
+      "std": 1.0671873729054748,
+      "n": 6
+    }
+  },
+  "instance_count": 6,
+  "processed_count": 6,
+  "default_runner_name": "DeterministicBaseline",
+  "gram_runner_name": "FrozenGammaOpenAi"
+}

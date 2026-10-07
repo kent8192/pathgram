@@ -196,9 +196,15 @@ mod tests {
                 .find(|e| e.kind == EdgeKind::CoAccessed)
                 .map(|e| e.weight)
                 .unwrap_or(0.0);
-            assert!(current >= last_weight, "weight should be monotonic non-decreasing");
+            assert!(
+                current >= last_weight,
+                "weight should be monotonic non-decreasing"
+            );
             last_weight = current;
         }
-        assert!(last_weight > 0.4, "weight should grow past 0.4 after 20 successes");
+        assert!(
+            last_weight > 0.4,
+            "weight should grow past 0.4 after 20 successes"
+        );
     }
 }

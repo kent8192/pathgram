@@ -1,8 +1,6 @@
 #![cfg(feature = "eval")]
 
-use pathgram::eval::loaders::{
-    swe_bench_lite::SweBenchLiteLoader, swe_gym::SweGymLoader, Loader,
-};
+use pathgram::eval::loaders::{swe_bench_lite::SweBenchLiteLoader, swe_gym::SweGymLoader, Loader};
 use std::path::PathBuf;
 
 fn fixture_path() -> PathBuf {

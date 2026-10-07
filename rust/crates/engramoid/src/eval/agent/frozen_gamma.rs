@@ -12,19 +12,32 @@ use std::path::Path;
 /// files are the distinct paths cited in the resulting blob.
 pub struct FrozenGammaRunner<'a> {
     pub pipeline: FrozenGammaPipeline<'a>,
+    name: &'static str,
 }
 
 impl<'a> FrozenGammaRunner<'a> {
     pub fn new(embedder: &'a dyn Embedder, reranker: &'a dyn Reranker) -> Self {
         Self {
             pipeline: FrozenGammaPipeline::new(embedder, reranker),
+            name: "FrozenGamma",
+        }
+    }
+
+    pub fn named(
+        embedder: &'a dyn Embedder,
+        reranker: &'a dyn Reranker,
+        name: &'static str,
+    ) -> Self {
+        Self {
+            pipeline: FrozenGammaPipeline::new(embedder, reranker),
+            name,
         }
     }
 }
 
 impl<'a> AgentRunner for FrozenGammaRunner<'a> {
     fn name(&self) -> &'static str {
-        "FrozenGamma"
+        self.name
     }
 
     fn run(&self, instance: &SweInstance, repo_root: &Path) -> Result<Trace, RunError> {
@@ -33,11 +46,15 @@ impl<'a> AgentRunner for FrozenGammaRunner<'a> {
             .retrieve(&instance.problem_statement, repo_root)
             .map_err(|e| RunError::Custom(format!("frozen γ pipeline: {e}")))?;
         let accessed = blob.distinct_paths();
-        let final_reading_context: Vec<String> =
-            accessed.iter().rev().take(5).cloned().collect::<Vec<_>>()
-                .into_iter()
-                .rev()
-                .collect();
+        let final_reading_context: Vec<String> = accessed
+            .iter()
+            .rev()
+            .take(5)
+            .cloned()
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
         let single_call = ToolCall {
             kind: ToolKind::Other("FrozenGamma".to_string()),
             input: instance.problem_statement.clone(),

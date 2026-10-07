@@ -73,9 +73,7 @@ pub fn extract_keywords(statement: &str, max_keywords: usize, min_len: usize) ->
         .find_iter(statement)
         .map(|m| m.as_str().to_string())
         .filter(|s| s.len() >= min_len)
-        .filter(|s| {
-            s.chars().any(char::is_uppercase) || s.contains('_')
-        })
+        .filter(|s| s.chars().any(char::is_uppercase) || s.contains('_'))
         .collect();
     out.sort_by(|a, b| b.len().cmp(&a.len()));
     out.dedup();

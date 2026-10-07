@@ -9,9 +9,9 @@ use pathgram::eval::{
     runner::EvalRunner,
 };
 use pathgram::scorers::{
-    cohere_rerank::{CohereReranker, MockReranker},
+    cohere_rerank::{CandidateOrderReranker, CohereReranker, MockReranker},
     gemini_embed::GeminiEmbedder,
-    openai_embed::MockEmbedder,
+    openai_embed::{MockEmbedder, OpenAiEmbedder},
     Embedder, Reranker,
 };
 use std::path::PathBuf;
@@ -28,6 +28,8 @@ enum GramKind {
     None,
     /// Frozen γ pipeline: Gemini Embeddings + Cohere Rerank (live, requires API keys)
     FrozenGamma,
+    /// Frozen γ pipeline: OpenAI Embeddings + candidate-order rerank (live, requires OPENAI_API_KEY)
+    FrozenGammaOpenai,
     /// Frozen γ pipeline with mock scorers (offline; for smoke-testing the pipeline plumbing)
     FrozenGammaMock,
     /// Hebbian γ pipeline: Gemini + Cohere with learning (live, requires API keys)
@@ -37,7 +39,10 @@ enum GramKind {
 }
 
 #[derive(Parser, Debug)]
-#[command(name = "pathgram-eval", about = "Phase 2 evaluation harness (in-process port)")]
+#[command(
+    name = "pathgram-eval",
+    about = "Phase 2 evaluation harness (in-process port)"
+)]
 struct Args {
     /// Path to the JSONL dataset
     #[arg(long)]
@@ -57,6 +62,12 @@ struct Args {
     /// Gram runner to compare against the deterministic baseline.
     #[arg(long, value_enum, default_value_t = GramKind::None)]
     gram_runner: GramKind,
+    /// OpenAI embedding model for --gram-runner frozen-gamma-openai.
+    #[arg(long, default_value = "text-embedding-3-small")]
+    openai_embedding_model: String,
+    /// OpenAI embedding dimensions for --gram-runner frozen-gamma-openai.
+    #[arg(long, default_value_t = 1024)]
+    openai_embedding_dimensions: usize,
     /// Bootstrap CI confidence level (0..1).
     #[arg(long, default_value_t = 0.95)]
     bootstrap_confidence: f64,
@@ -129,6 +140,21 @@ fn main() {
                 &*embedder_box,
                 &*cohere_box,
             )));
+        }
+        GramKind::FrozenGammaOpenai => {
+            let openai = OpenAiEmbedder::from_env()
+                .unwrap_or_else(|e| {
+                    eprintln!("frozen-gamma-openai requires OPENAI_API_KEY: {e}");
+                    std::process::exit(2);
+                })
+                .with_model(&args.openai_embedding_model)
+                .with_dimensions(args.openai_embedding_dimensions);
+            embedder_box = Box::new(openai);
+            cohere_box = Box::new(CandidateOrderReranker);
+            let mut runner =
+                FrozenGammaRunner::named(&*embedder_box, &*cohere_box, "FrozenGammaOpenAi");
+            runner.pipeline.embedding_dim = args.openai_embedding_dimensions;
+            gram_owned = Some(GramRunner::Frozen(runner));
         }
         GramKind::FrozenGammaMock => {
             embedder_box = Box::new(MockEmbedder::new(768));

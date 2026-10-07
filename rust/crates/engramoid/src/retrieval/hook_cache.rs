@@ -51,7 +51,12 @@ impl HookExecutionCache {
     /// on subsequent calls for the same path.
     pub fn execute(&mut self, repo_root: &Path, file_path: &str) -> &ExecutionResult {
         if !self.cache.contains_key(file_path) {
-            let result = Self::run_file(repo_root, file_path, self.timeout_secs, self.max_output_bytes);
+            let result = Self::run_file(
+                repo_root,
+                file_path,
+                self.timeout_secs,
+                self.max_output_bytes,
+            );
             self.cache.insert(file_path.to_string(), result);
         }
         self.cache.get(file_path).expect("just inserted")

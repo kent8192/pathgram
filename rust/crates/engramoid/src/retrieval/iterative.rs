@@ -110,7 +110,11 @@ impl IterativeRetriever {
             include_ppr: has_ast_graph,
             ..Default::default()
         };
-        let graph_opt = if has_ast_graph { Some(&ast_engine) } else { None };
+        let graph_opt = if has_ast_graph {
+            Some(&ast_engine)
+        } else {
+            None
+        };
         let round1_candidates =
             candidate_source.generate(&store, &task_vec, &chunks, task, repo_root, graph_opt);
 
@@ -286,11 +290,7 @@ mod tests {
         .unwrap();
 
         // Unrelated file
-        std::fs::write(
-            root.join("src/other.py"),
-            "def unrelated():\n    pass\n",
-        )
-        .unwrap();
+        std::fs::write(root.join("src/other.py"), "def unrelated():\n    pass\n").unwrap();
 
         td
     }
@@ -343,7 +343,10 @@ mod tests {
         let blob = retriever
             .retrieve(&embedder, &reranker, "Validator regex", repo.path())
             .unwrap();
-        assert!(!blob.chunks.is_empty(), "single round should return results");
+        assert!(
+            !blob.chunks.is_empty(),
+            "single round should return results"
+        );
     }
 
     #[test]

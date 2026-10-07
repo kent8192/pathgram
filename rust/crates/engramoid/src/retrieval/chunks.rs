@@ -38,7 +38,9 @@ impl Chunker {
             .follow_links(false)
             .into_iter()
             .filter_entry(|e| {
-                let Some(name) = e.file_name().to_str() else { return false };
+                let Some(name) = e.file_name().to_str() else {
+                    return false;
+                };
                 !is_skip_component(name)
             });
         for entry in walker.flatten() {
@@ -177,7 +179,10 @@ mod tests {
     fn chunker_emits_overlapping_chunks() {
         let repo = fake_repo();
         let chunks = Chunker::default().chunk_repo(repo.path());
-        let big_chunks: Vec<_> = chunks.iter().filter(|c| c.path.ends_with("big.py")).collect();
+        let big_chunks: Vec<_> = chunks
+            .iter()
+            .filter(|c| c.path.ends_with("big.py"))
+            .collect();
         assert!(
             big_chunks.len() >= 3,
             "expected ≥3 chunks for 120-line file, got {}",
@@ -201,7 +206,10 @@ mod tests {
     fn chunker_handles_small_files() {
         let repo = fake_repo();
         let chunks = Chunker::default().chunk_repo(repo.path());
-        let small: Vec<_> = chunks.iter().filter(|c| c.path.ends_with("small.py")).collect();
+        let small: Vec<_> = chunks
+            .iter()
+            .filter(|c| c.path.ends_with("small.py"))
+            .collect();
         assert_eq!(small.len(), 1);
         assert_eq!(small[0].line_start, 1);
         assert_eq!(small[0].line_end, 3);

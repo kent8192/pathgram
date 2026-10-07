@@ -6,7 +6,11 @@ use rand::SeedableRng;
 /// Paired bootstrap CI for the mean of `(b_i - a_i)` at the requested
 /// confidence level. Returns `(lower, upper)`.
 #[must_use]
-#[allow(clippy::cast_precision_loss, clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation
+)]
 pub fn paired_bootstrap_ci(
     a: &[f64],
     b: &[f64],
@@ -74,7 +78,13 @@ pub fn paired_primary_ci(
         None
     } else {
         let (a_cov, b_cov): (Vec<f64>, Vec<f64>) = cov_pairs.into_iter().unzip();
-        Some(paired_bootstrap_ci(&a_cov, &b_cov, n_resamples, confidence, seed))
+        Some(paired_bootstrap_ci(
+            &a_cov,
+            &b_cov,
+            n_resamples,
+            confidence,
+            seed,
+        ))
     };
 
     PrimaryMetricCi {

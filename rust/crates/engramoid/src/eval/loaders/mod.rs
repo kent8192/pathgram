@@ -41,10 +41,7 @@ pub(crate) fn read_jsonl(path: &Path) -> Result<Vec<SweInstance>, LoadError> {
 /// Return the subset of `train` whose `repo` does NOT appear in `eval`.
 /// Enforces the repo-disjoint invariant required by the design doc §8.3.
 #[must_use]
-pub fn repo_disjoint_split(
-    train: &[SweInstance],
-    eval: &[SweInstance],
-) -> Vec<SweInstance> {
+pub fn repo_disjoint_split(train: &[SweInstance], eval: &[SweInstance]) -> Vec<SweInstance> {
     let eval_repos: HashSet<&str> = eval.iter().map(|i| i.repo.as_str()).collect();
     train
         .iter()
