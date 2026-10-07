@@ -69,7 +69,10 @@ pub fn compute_metrics(
     let is_gram = gram_runner_name.is_some();
     let (gram_steps, step_red) = if is_gram {
         let gs = trace.step_count();
-        (Some(gs), step_reduction::step_reduction_rate(default_steps, gs))
+        (
+            Some(gs),
+            step_reduction::step_reduction_rate(default_steps, gs),
+        )
     } else {
         (None, None)
     };
@@ -79,7 +82,10 @@ pub fn compute_metrics(
     // trivially 1.0 (final_reading_context ⊆ distinct_accessed_files), so we
     // emit None to avoid the degenerate signal.
     let cov = if is_gram {
-        Some(coverage::coverage(&retrieved, &coverage_reference_trace.final_reading_context))
+        Some(coverage::coverage(
+            &retrieved,
+            &coverage_reference_trace.final_reading_context,
+        ))
     } else {
         None
     };
@@ -117,17 +123,18 @@ pub fn compute_batch(
 ) -> Vec<MetricRecord> {
     let n = default_traces.len().min(instances.len());
     if let Some(gt) = gram_traces {
-        assert_eq!(gt.len(), n, "gram trace count must match default trace count");
+        assert_eq!(
+            gt.len(),
+            n,
+            "gram trace count must match default trace count"
+        );
     }
     let mut out = Vec::with_capacity(n);
     for i in 0..n {
         let default_t = &default_traces[i];
         let inst = &instances[i];
         if let Some(gt) = gram_traces {
-            let timing = timings
-                .and_then(|t| t.get(i))
-                .cloned()
-                .unwrap_or_default();
+            let timing = timings.and_then(|t| t.get(i)).cloned().unwrap_or_default();
             out.push(compute_metrics(
                 &gt[i],
                 inst,
@@ -207,14 +214,15 @@ impl MetricSummary {
         let step: Vec<f64> = records.iter().filter_map(|r| r.step_reduction).collect();
         let cov: Vec<f64> = records.iter().filter_map(|r| r.coverage).collect();
         #[allow(clippy::cast_precision_loss)]
-        let gfc: Vec<f64> = records
-            .iter()
-            .map(|r| r.golden_file_count as f64)
-            .collect();
+        let gfc: Vec<f64> = records.iter().map(|r| r.golden_file_count as f64).collect();
         MetricSummary {
             recall_at_5: Stat::of(&recall),
             step_reduction: Stat::of(&step),
-            coverage: if cov.is_empty() { None } else { Some(Stat::of(&cov)) },
+            coverage: if cov.is_empty() {
+                None
+            } else {
+                Some(Stat::of(&cov))
+            },
             golden_file_count: Stat::of(&gfc),
         }
     }
@@ -271,9 +279,7 @@ mod tests {
         assert_eq!(back.default_steps, r.default_steps);
         assert_eq!(back.gram_steps, r.gram_steps);
         assert!((back.recall_at_5 - r.recall_at_5).abs() < 1e-9);
-        assert!(
-            (back.step_reduction.unwrap() - r.step_reduction.unwrap()).abs() < 1e-9
-        );
+        assert!((back.step_reduction.unwrap() - r.step_reduction.unwrap()).abs() < 1e-9);
         assert!((back.coverage.unwrap() - r.coverage.unwrap()).abs() < 1e-9);
         assert_eq!(back.golden_file_count, r.golden_file_count);
     }

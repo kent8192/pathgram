@@ -58,7 +58,10 @@ struct EmbedReq {
     content: Content,
     #[serde(rename = "taskType")]
     task_type: &'static str,
-    #[serde(rename = "outputDimensionality", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "outputDimensionality",
+        skip_serializing_if = "Option::is_none"
+    )]
     output_dimensionality: Option<usize>,
 }
 

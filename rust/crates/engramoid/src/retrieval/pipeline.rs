@@ -94,7 +94,11 @@ impl<'a> FrozenGammaPipeline<'a> {
             include_ppr: has_ast_graph,
             ..Default::default()
         };
-        let graph_opt = if has_ast_graph { Some(&ast_engine) } else { None };
+        let graph_opt = if has_ast_graph {
+            Some(&ast_engine)
+        } else {
+            None
+        };
         let candidates =
             candidate_source.generate(&store, &task_vec, &chunks, task, repo_root, graph_opt);
         if candidates.is_empty() {
@@ -109,9 +113,7 @@ impl<'a> FrozenGammaPipeline<'a> {
         let cand_texts: Vec<String> = cand_chunks.iter().map(|c| c.text.clone()).collect();
 
         // 5. Stage 2: rerank
-        let reranked = self
-            .reranker
-            .rerank(task, &cand_texts, self.rerank_top_k)?;
+        let reranked = self.reranker.rerank(task, &cand_texts, self.rerank_top_k)?;
         let ranked: Vec<(Chunk, f32)> = reranked
             .into_iter()
             .map(|(idx, score)| (cand_chunks[idx].clone(), score))
@@ -142,10 +144,8 @@ impl<'a> FrozenGammaPipeline<'a> {
                 let coverage = overlap as f64 / b0_set.len() as f64;
 
                 if coverage < self.coverage_fallback_threshold {
-                    let b0_only: std::collections::HashSet<&str> = b0_set
-                        .difference(&b4_paths)
-                        .copied()
-                        .collect();
+                    let b0_only: std::collections::HashSet<&str> =
+                        b0_set.difference(&b4_paths).copied().collect();
                     // Augment candidates with B0-only-file chunks
                     let mut augmented: Vec<(usize, CandidateSource)> = candidates.clone();
                     let mut augmented_indices: Vec<usize> = Vec::new();
@@ -214,7 +214,9 @@ mod tests {
             embed_batch_size: 4,
             coverage_fallback_threshold: 0.3,
         };
-        let blob = pipe.retrieve("ASCIIUsernameValidator regex", repo.path()).unwrap();
+        let blob = pipe
+            .retrieve("ASCIIUsernameValidator regex", repo.path())
+            .unwrap();
         assert!(!blob.chunks.is_empty());
         let paths = blob.distinct_paths();
         assert!(paths.iter().all(|p| p.ends_with(".py")));

@@ -29,6 +29,10 @@ From `kent8192/engramoid`'s `feat/phase1-foundation` branch:
 
 A Phase-2-specific evaluation harness, gated behind `--features eval`:
 
+`graph::builder` and its AST-to-chunk pipeline are part of this feature. The
+default graph/tracker build does not require the optional tree-sitter parsers
+or retrieval modules; enable `eval` to use `AstGraphBuilder`.
+
 | Module | Purpose |
 | --- | --- |
 | `eval::instance` | `SweInstance` (SWE-bench Lite / SWE-Gym schema) |

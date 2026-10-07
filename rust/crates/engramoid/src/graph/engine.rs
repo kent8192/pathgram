@@ -121,7 +121,13 @@ impl GraphEngine {
     /// Find and mutate an edge between `source` and `target` of the given
     /// `kind`, checking both directions. Returns `true` if an edge was
     /// found and the closure was applied.
-    pub fn update_edge<F>(&mut self, source: &NodeId, target: &NodeId, kind: &EdgeKind, f: F) -> bool
+    pub fn update_edge<F>(
+        &mut self,
+        source: &NodeId,
+        target: &NodeId,
+        kind: &EdgeKind,
+        f: F,
+    ) -> bool
     where
         F: FnOnce(&mut Edge),
     {

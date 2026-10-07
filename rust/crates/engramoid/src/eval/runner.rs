@@ -43,10 +43,7 @@ impl<'a> EvalRunner<'a> {
             let root = match cache.checkout(&url, &inst.base_commit, wd.path()) {
                 Ok(r) => r,
                 Err(e) => {
-                    eprintln!(
-                        "skip {} (checkout failed: {e})",
-                        inst.instance_id
-                    );
+                    eprintln!("skip {} (checkout failed: {e})", inst.instance_id);
                     continue;
                 }
             };
@@ -69,7 +66,13 @@ impl<'a> EvalRunner<'a> {
                 match gram.run(inst, &root) {
                     Ok(gram_trace) => {
                         let wall_time_ms = Some(start.elapsed().as_millis() as u64);
-                        let chunk_count = Some(gram_trace.tool_calls.iter().map(|tc| tc.accessed_files.len()).sum());
+                        let chunk_count = Some(
+                            gram_trace
+                                .tool_calls
+                                .iter()
+                                .map(|tc| tc.accessed_files.len())
+                                .sum(),
+                        );
                         let timing = RunnerTiming {
                             wall_time_ms,
                             api_cost_estimate: None, // set by pipeline if available

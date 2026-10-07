@@ -1,3 +1,4 @@
+#[cfg(feature = "eval")]
 pub mod builder;
 pub mod engine;
 pub mod models;

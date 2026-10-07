@@ -439,7 +439,10 @@ fn classify_error_kind(message: &str) -> &'static str {
         "unknown_slash_command"
     } else if message.starts_with("command_not_found:") {
         "command_not_found"
-    } else if message.contains("missing Anthropic credentials") {
+    } else if ["Anthropic", "OpenAI", "xAI", "DashScope", "DeepSeek"]
+        .iter()
+        .any(|provider| message.contains(&format!("missing {provider} credentials")))
+    {
         "missing_credentials"
     } else if message.contains("Manifest source files are missing")
         || message.starts_with("missing_manifests:")
@@ -3094,10 +3097,12 @@ fn print_model_validation_warning_status(
         usage,
         permission_mode,
         context,
-        None,
-        None,
-        allowed_tools,
-        Some(&format_selection),
+        crate::StatusRenderOptions {
+            provenance: None,
+            permission_provenance: None,
+            allowed_tools,
+            format_selection: Some(&format_selection),
+        },
     );
     let object = value
         .as_object_mut()
@@ -3174,9 +3179,7 @@ fn parse_system_prompt_args(
                 })?;
                 // #99: validate --date is a plausible date string (no newlines, reasonable length)
                 if value.contains('\n') || value.contains('\r') {
-                    return Err(format!(
-                        "invalid_flag_value: --date value contains invalid characters.\nUsage: --date <YYYY-MM-DD>"
-                    ));
+                    return Err("invalid_flag_value: --date value contains invalid characters.\nUsage: --date <YYYY-MM-DD>".to_string());
                 }
                 if value.len() > 20 {
                     return Err(format!(
@@ -3413,11 +3416,7 @@ impl DiagnosticCheck {
 
     fn json_value(&self) -> Value {
         // Derive a stable snake_case id from the check name for machine-readable keying (#704).
-        let id = self
-            .name
-            .to_ascii_lowercase()
-            .replace(' ', "_")
-            .replace('-', "_");
+        let id = self.name.to_ascii_lowercase().replace([' ', '-'], "_");
         let mut value = Map::from_iter([
             ("id".to_string(), Value::String(id.clone())),
             (
@@ -6523,10 +6522,12 @@ fn run_resume_command(
                     },
                     default_permission_mode().as_str(),
                     &context,
-                    None, // #148: resumed sessions don't have flag provenance
-                    None,
-                    None,
-                    None,
+                    crate::StatusRenderOptions {
+                        provenance: None,
+                        permission_provenance: None,
+                        allowed_tools: None,
+                        format_selection: None,
+                    },
                 )),
             })
         }
@@ -6664,16 +6665,15 @@ fn run_resume_command(
         }
         SlashCommand::Plugins { action, target } => {
             // Only list is supported in resume mode (no runtime to reload)
-            match action.as_deref() {
-                Some(action @ ("install" | "uninstall" | "enable" | "disable" | "update")) => {
-                    // #777: use interactive_only: prefix + \n hint so #776's classify/split
-                    // emits error_kind:interactive_only + non-null hint instead of unknown+null.
-                    // Orchestrators can now detect this and switch to a live REPL instead of retrying.
-                    return Err(format!(
-                        "interactive_only: /plugins {action} requires a live session to reload the plugin runtime.\nStart `claw` and run `/plugins {action}` inside the REPL, or use `claw plugins {action}` as a direct CLI command."
-                    ).into());
-                }
-                _ => {}
+            if let Some(action @ ("install" | "uninstall" | "enable" | "disable" | "update")) =
+                action.as_deref()
+            {
+                // #777: use interactive_only: prefix + \n hint so #776's classify/split
+                // emits error_kind:interactive_only + non-null hint instead of unknown+null.
+                // Orchestrators can now detect this and switch to a live REPL instead of retrying.
+                return Err(format!(
+                    "interactive_only: /plugins {action} requires a live session to reload the plugin runtime.\nStart `claw` and run `/plugins {action}` inside the REPL, or use `claw plugins {action}` as a direct CLI command."
+                ).into());
             }
             let cwd = env::current_dir()?;
             let payload = plugins_command_payload_for(
@@ -7719,8 +7719,11 @@ impl LiveCli {
                     let max_compact_rounds = 4;
                     let preserve_schedule = [4, 2, 1, 0];
 
-                    for round in 0..max_compact_rounds {
-                        let preserve = preserve_schedule[round];
+                    for (round, preserve) in preserve_schedule
+                        .into_iter()
+                        .enumerate()
+                        .take(max_compact_rounds)
+                    {
                         println!(
                             "  Auto-compacting session (round {}/{}, preserving {} recent messages)...",
                             round + 1,
@@ -8451,8 +8454,8 @@ impl LiveCli {
         let cwd = env::current_dir()?;
         // #803: reject flag-shaped tokens in list filter for BOTH text and JSON modes.
         // Previously the guard was JSON-only (#793); text mode silently returned empty success.
-        if action.as_deref() == Some("list") {
-            if let Some(filter) = target.as_deref() {
+        if action == Some("list") {
+            if let Some(filter) = target {
                 if filter.starts_with('-') {
                     if matches!(output_format, CliOutputFormat::Json) {
                         // ROADMAP #817: this is a handled local inventory parse error.
@@ -9390,14 +9393,24 @@ fn print_status_snapshot(
                 usage,
                 permission_mode.mode.as_str(),
                 &context,
-                Some(&provenance),
-                Some(&permission_mode),
-                allowed_tools,
-                Some(&format_selection),
+                crate::StatusRenderOptions {
+                    provenance: Some(&provenance),
+                    permission_provenance: Some(&permission_mode),
+                    allowed_tools,
+                    format_selection: Some(&format_selection),
+                },
             ))?
         ),
     }
     Ok(())
+}
+
+#[derive(Default)]
+struct StatusRenderOptions<'a> {
+    provenance: Option<&'a ModelProvenance>,
+    permission_provenance: Option<&'a PermissionModeProvenance>,
+    allowed_tools: Option<&'a AllowedToolSet>,
+    format_selection: Option<&'a OutputFormatSelection>,
 }
 
 fn status_json_value(
@@ -9405,16 +9418,14 @@ fn status_json_value(
     usage: StatusUsage,
     permission_mode: &str,
     context: &StatusContext,
-    // #148: optional provenance for `model` field. Surfaces `model_source`
-    // ("flag" | "env" | "config" | "default") and `model_raw` (user input
-    // before alias resolution, or null when source is "default"). Callers
-    // that don't have provenance (legacy resume paths) pass None, in which
-    // case both new fields are omitted.
-    provenance: Option<&ModelProvenance>,
-    permission_provenance: Option<&PermissionModeProvenance>,
-    allowed_tools: Option<&AllowedToolSet>,
-    format_selection: Option<&OutputFormatSelection>,
+    options: StatusRenderOptions<'_>,
 ) -> serde_json::Value {
+    let StatusRenderOptions {
+        provenance,
+        permission_provenance,
+        allowed_tools,
+        format_selection,
+    } = options;
     // #143: top-level `status` marker so claws can distinguish
     // a clean run from a degraded run (config parse failed but other fields
     // are still populated). `config_load_error` carries the parse-error string
@@ -9881,15 +9892,9 @@ fn sandbox_json_value(status: &runtime::SandboxStatus) -> serde_json::Value {
     //        (#731: "not supported on macOS" is a degraded state, not a hard error;
     //         filesystem_active:true means partial containment is working)
     // error = enabled but unsupported AND no filesystem sandbox either (nothing active)
-    let top_status = if !status.enabled {
+    let top_status = if !status.enabled || status.active {
         "ok"
-    } else if status.active {
-        "ok"
-    } else if status.supported {
-        "warn"
-    } else if status.filesystem_active {
-        // Platform doesn't support namespace isolation but filesystem sandbox is active:
-        // this is a degraded/partial state, not a hard error.
+    } else if status.supported || status.filesystem_active {
         "warn"
     } else {
         "error"
@@ -10125,7 +10130,9 @@ fn print_models(
         CliOutputFormat::Text => {
             println!("Models");
             println!("  Default          {DEFAULT_MODEL}");
-            println!("  Built-in aliases opus, sonnet, haiku, deepseek, deepseek-flash, deepseek-pro");
+            println!(
+                "  Built-in aliases opus, sonnet, haiku, deepseek, deepseek-flash, deepseek-pro"
+            );
             if let Some(raw) = configured_model.as_deref() {
                 println!(
                     "  Config model     {raw}{}",
@@ -10252,19 +10259,19 @@ fn render_doctor_help_json() -> serde_json::Value {
     })
 }
 
-/// #683-#692: extract structured metadata from help prose
-fn extract_help_metadata(
-    topic: LocalHelpTopic,
-) -> (
-    Option<String>,      // usage
-    Option<String>,      // purpose
-    Option<String>,      // output description
-    Option<Vec<String>>, // formats
-    Option<Vec<String>>, // related
-    Option<Vec<String>>, // aliases
-    bool,                // local_only
-    bool,                // requires_credentials
-) {
+struct HelpMetadata {
+    usage: Option<String>,
+    purpose: Option<String>,
+    output_desc: Option<String>,
+    formats: Option<Vec<String>>,
+    related: Option<Vec<String>>,
+    aliases: Option<Vec<String>>,
+    local_only: bool,
+    requires_credentials: bool,
+}
+
+/// Extract structured metadata from help prose for machine consumption.
+fn extract_help_metadata(topic: LocalHelpTopic) -> HelpMetadata {
     let text = render_help_topic(topic);
     let mut usage = None;
     let mut purpose = None;
@@ -10316,7 +10323,7 @@ fn extract_help_metadata(
             }
         }
     }
-    (
+    HelpMetadata {
         usage,
         purpose,
         output_desc,
@@ -10324,8 +10331,8 @@ fn extract_help_metadata(
         related,
         aliases,
         local_only,
-        !local_only,
-    )
+        requires_credentials: !local_only,
+    }
 }
 
 fn render_help_topic_json(topic: LocalHelpTopic) -> serde_json::Value {
@@ -10337,8 +10344,16 @@ fn render_help_topic_json(topic: LocalHelpTopic) -> serde_json::Value {
     }
 
     // #683-#692: extract structured metadata from help prose for machine consumption
-    let (usage, purpose, output_desc, formats, related, aliases, local_only, requires_credentials) =
-        extract_help_metadata(topic);
+    let HelpMetadata {
+        usage,
+        purpose,
+        output_desc,
+        formats,
+        related,
+        aliases,
+        local_only,
+        requires_credentials,
+    } = extract_help_metadata(topic);
     let mut obj = serde_json::json!({
         "kind": "help",
         "action": "help",
@@ -13747,39 +13762,37 @@ fn convert_messages(messages: &[ConversationMessage]) -> Vec<InputMessage> {
             let content = message
                 .blocks
                 .iter()
-                .filter_map(|block| match block {
-                    ContentBlock::Text { text } => {
-                        Some(InputContentBlock::Text { text: text.clone() })
-                    }
+                .map(|block| match block {
+                    ContentBlock::Text { text } => InputContentBlock::Text { text: text.clone() },
                     ContentBlock::Thinking {
                         thinking,
                         signature,
                     } => {
                         // 保留 Thinking 块：OpenAI 兼容协议会把它转成 reasoning_content 字段
                         // 回传给 DeepSeek V4（避免 400 "reasoning_content must be passed back" 错误）
-                        Some(InputContentBlock::Thinking {
+                        InputContentBlock::Thinking {
                             thinking: thinking.clone(),
                             signature: signature.clone(),
-                        })
+                        }
                     }
-                    ContentBlock::ToolUse { id, name, input } => Some(InputContentBlock::ToolUse {
+                    ContentBlock::ToolUse { id, name, input } => InputContentBlock::ToolUse {
                         id: id.clone(),
                         name: name.clone(),
                         input: serde_json::from_str(input)
                             .unwrap_or_else(|_| serde_json::json!({ "raw": input })),
-                    }),
+                    },
                     ContentBlock::ToolResult {
                         tool_use_id,
                         output,
                         is_error,
                         ..
-                    } => Some(InputContentBlock::ToolResult {
+                    } => InputContentBlock::ToolResult {
                         tool_use_id: tool_use_id.clone(),
                         content: vec![ToolResultContentBlock::Text {
                             text: output.clone(),
                         }],
                         is_error: *is_error,
-                    }),
+                    },
                 })
                 .collect::<Vec<_>>();
             (!content.is_empty()).then(|| InputMessage {
@@ -15651,10 +15664,12 @@ mod tests {
             usage,
             "workspace-write",
             &context,
-            None,
-            None,
-            None,
-            None,
+            crate::StatusRenderOptions {
+                provenance: None,
+                permission_provenance: None,
+                allowed_tools: None,
+                format_selection: None,
+            },
         );
         assert_eq!(
             json.get("status").and_then(|v| v.as_str()),
@@ -15726,10 +15741,12 @@ mod tests {
             usage,
             "workspace-write",
             &context,
-            None,
-            None,
-            Some(&allowed),
-            None,
+            crate::StatusRenderOptions {
+                provenance: None,
+                permission_provenance: None,
+                allowed_tools: Some(&allowed),
+                format_selection: None,
+            },
         );
         assert_eq!(
             restricted_json
@@ -15759,10 +15776,12 @@ mod tests {
             usage,
             "workspace-write",
             &clean_context,
-            None,
-            None,
-            None,
-            None,
+            crate::StatusRenderOptions {
+                provenance: None,
+                permission_provenance: None,
+                allowed_tools: None,
+                format_selection: None,
+            },
         );
         assert_eq!(
             clean_json.get("status").and_then(|v| v.as_str()),
@@ -15941,6 +15960,14 @@ mod tests {
     #[test]
     fn classify_error_kind_returns_correct_discriminants() {
         // #77: error kind classification for JSON error payloads
+        // All provider errors retain the same JSON contract, including the default model.
+        for provider in ["Anthropic", "OpenAI", "xAI", "DashScope", "DeepSeek"] {
+            let error = api::ApiError::missing_credentials(provider, &["TEST_API_KEY"]);
+            assert_eq!(
+                classify_error_kind(&error.to_string()),
+                "missing_credentials"
+            );
+        }
         assert_eq!(
             classify_error_kind("missing Anthropic credentials; export ..."),
             "missing_credentials"
@@ -16710,7 +16737,7 @@ mod tests {
         for action in ["remove", "uninstall", "delete"] {
             assert_eq!(
                 parse_args(&["skills".to_string(), action.to_string()])
-                    .expect(&format!("skills {action} should parse")),
+                    .unwrap_or_else(|_| panic!("skills {action} should parse")),
                 CliAction::Skills {
                     args: Some(action.to_string()),
                     output_format: CliOutputFormat::Text,
@@ -17660,10 +17687,12 @@ mod tests {
             },
             "workspace-write",
             &context,
-            None,
-            None,
-            None,
-            None,
+            crate::StatusRenderOptions {
+                provenance: None,
+                permission_provenance: None,
+                allowed_tools: None,
+                format_selection: None,
+            },
         );
 
         assert_eq!(

@@ -50,15 +50,24 @@ impl Lang {
     fn embeddable_kinds() -> &'static [&'static str] {
         &[
             // Python
-            "function_definition", "class_definition",
+            "function_definition",
+            "class_definition",
             // Rust
-            "function_item", "struct_item", "impl_item",
+            "function_item",
+            "struct_item",
+            "impl_item",
             // TypeScript
-            "function_declaration", "method_definition", "class_declaration",
+            "function_declaration",
+            "method_definition",
+            "class_declaration",
             // Go
-            "function_declaration", "method_declaration", "type_declaration",
+            "function_declaration",
+            "method_declaration",
+            "type_declaration",
             // Java
-            "method_declaration", "class_declaration", "interface_declaration",
+            "method_declaration",
+            "class_declaration",
+            "interface_declaration",
         ]
     }
 }
@@ -89,11 +98,7 @@ impl AstGraphBuilder {
             .max_depth(20)
             .follow_links(false)
             .into_iter()
-            .filter_entry(|e| {
-                e.file_name()
-                    .to_str()
-                    .is_some_and(|n| !is_skip_dir(n))
-            })
+            .filter_entry(|e| e.file_name().to_str().is_some_and(|n| !is_skip_dir(n)))
             .flatten()
         {
             if !entry.file_type().is_file() {
@@ -124,13 +129,7 @@ impl AstGraphBuilder {
                 .to_string_lossy()
                 .into_owned();
 
-            self.process_file(
-                &rel_path,
-                &source,
-                lang,
-                &mut engine,
-                &mut func_name_to_ids,
-            );
+            self.process_file(&rel_path, &source, lang, &mut engine, &mut func_name_to_ids);
         }
 
         engine
@@ -140,11 +139,7 @@ impl AstGraphBuilder {
     /// embedded. Re-reads source files from disk using byte-range metadata
     /// stored on each node during `build()`.
     #[must_use]
-    pub fn extract_chunks(
-        &self,
-        engine: &GraphEngine,
-        repo_root: &Path,
-    ) -> Vec<(NodeId, Chunk)> {
+    pub fn extract_chunks(&self, engine: &GraphEngine, repo_root: &Path) -> Vec<(NodeId, Chunk)> {
         let mut out = Vec::new();
         let mut file_cache: HashMap<PathBuf, String> = HashMap::new();
 
@@ -220,7 +215,12 @@ impl AstGraphBuilder {
 
         let root = tree.root_node();
 
-        let file_id = add_node(engine, NodeKind::File, rel_path, &format!("File: {rel_path}"));
+        let file_id = add_node(
+            engine,
+            NodeKind::File,
+            rel_path,
+            &format!("File: {rel_path}"),
+        );
         let module_id = add_node(
             engine,
             NodeKind::Module,
@@ -232,19 +232,49 @@ impl AstGraphBuilder {
         // Dispatch top-level children based on language
         match lang {
             Lang::Python => self.process_python(
-                root, source, rel_path, module_id, file_id, engine, func_name_to_ids,
+                root,
+                source,
+                rel_path,
+                module_id,
+                file_id,
+                engine,
+                func_name_to_ids,
             ),
             Lang::Rust => self.process_rust(
-                root, source, rel_path, module_id, file_id, engine, func_name_to_ids,
+                root,
+                source,
+                rel_path,
+                module_id,
+                file_id,
+                engine,
+                func_name_to_ids,
             ),
             Lang::TypeScript => self.process_typescript(
-                root, source, rel_path, module_id, file_id, engine, func_name_to_ids,
+                root,
+                source,
+                rel_path,
+                module_id,
+                file_id,
+                engine,
+                func_name_to_ids,
             ),
             Lang::Go => self.process_go(
-                root, source, rel_path, module_id, file_id, engine, func_name_to_ids,
+                root,
+                source,
+                rel_path,
+                module_id,
+                file_id,
+                engine,
+                func_name_to_ids,
             ),
             Lang::Java => self.process_java(
-                root, source, rel_path, module_id, file_id, engine, func_name_to_ids,
+                root,
+                source,
+                rel_path,
+                module_id,
+                file_id,
+                engine,
+                func_name_to_ids,
             ),
         }
     }
@@ -262,7 +292,9 @@ impl AstGraphBuilder {
         func_name_to_ids: &mut HashMap<String, Vec<NodeId>>,
     ) {
         for i in 0..root.named_child_count() {
-            let Some(child) = root.named_child(i) else { continue };
+            let Some(child) = root.named_child(i) else {
+                continue;
+            };
             match child.kind() {
                 "function_definition" => {
                     let fid = process_py_function(child, source, file_path, module_id, engine);
@@ -272,7 +304,14 @@ impl AstGraphBuilder {
                         .push(fid);
                 }
                 "class_definition" => {
-                    let cid = process_py_class(child, source, file_path, module_id, engine, func_name_to_ids);
+                    let cid = process_py_class(
+                        child,
+                        source,
+                        file_path,
+                        module_id,
+                        engine,
+                        func_name_to_ids,
+                    );
                     func_name_to_ids
                         .entry(child_name(child, source))
                         .or_default()
@@ -299,25 +338,42 @@ impl AstGraphBuilder {
         func_name_to_ids: &mut HashMap<String, Vec<NodeId>>,
     ) {
         for i in 0..root.named_child_count() {
-            let Some(child) = root.named_child(i) else { continue };
+            let Some(child) = root.named_child(i) else {
+                continue;
+            };
             match child.kind() {
                 "function_item" => {
                     let name = child_name(child, source);
-                    let fid = add_node(engine, NodeKind::Function, &name, &format!("fn {name} in {file_path}"));
+                    let fid = add_node(
+                        engine,
+                        NodeKind::Function,
+                        &name,
+                        &format!("fn {name} in {file_path}"),
+                    );
                     set_byte_meta(engine, &fid, file_path, child);
                     engine.add_edge(Edge::new(module_id, fid, EdgeKind::Contains));
                     func_name_to_ids.entry(name).or_default().push(fid);
                 }
                 "struct_item" => {
                     let name = child_name(child, source);
-                    let sid = add_node(engine, NodeKind::Class, &name, &format!("struct {name} in {file_path}"));
+                    let sid = add_node(
+                        engine,
+                        NodeKind::Class,
+                        &name,
+                        &format!("struct {name} in {file_path}"),
+                    );
                     set_byte_meta(engine, &sid, file_path, child);
                     engine.add_edge(Edge::new(module_id, sid, EdgeKind::Contains));
                     func_name_to_ids.entry(name).or_default().push(sid);
                 }
                 "impl_item" => {
                     let name = child_name(child, source);
-                    let iid = add_node(engine, NodeKind::Class, &name, &format!("impl {name} in {file_path}"));
+                    let iid = add_node(
+                        engine,
+                        NodeKind::Class,
+                        &name,
+                        &format!("impl {name} in {file_path}"),
+                    );
                     set_byte_meta(engine, &iid, file_path, child);
                     engine.add_edge(Edge::new(module_id, iid, EdgeKind::Contains));
                     // Process methods inside impl
@@ -326,7 +382,12 @@ impl AstGraphBuilder {
                             if let Some(method) = body.named_child(j) {
                                 if method.kind() == "function_item" {
                                     let mname = child_name(method, source);
-                                    let mid = add_node(engine, NodeKind::Function, &mname, &format!("fn {mname} in {file_path}"));
+                                    let mid = add_node(
+                                        engine,
+                                        NodeKind::Function,
+                                        &mname,
+                                        &format!("fn {mname} in {file_path}"),
+                                    );
                                     set_byte_meta(engine, &mid, file_path, method);
                                     engine.add_edge(Edge::new(iid, mid, EdgeKind::Contains));
                                     func_name_to_ids.entry(mname).or_default().push(mid);
@@ -353,24 +414,43 @@ impl AstGraphBuilder {
         func_name_to_ids: &mut HashMap<String, Vec<NodeId>>,
     ) {
         for i in 0..root.named_child_count() {
-            let Some(child) = root.named_child(i) else { continue };
+            let Some(child) = root.named_child(i) else {
+                continue;
+            };
             match child.kind() {
                 "function_declaration" | "method_definition" => {
                     let name = child_name(child, source);
-                    let fid = add_node(engine, NodeKind::Function, &name, &format!("function {name} in {file_path}"));
+                    let fid = add_node(
+                        engine,
+                        NodeKind::Function,
+                        &name,
+                        &format!("function {name} in {file_path}"),
+                    );
                     set_byte_meta(engine, &fid, file_path, child);
                     engine.add_edge(Edge::new(module_id, fid, EdgeKind::Contains));
                     func_name_to_ids.entry(name).or_default().push(fid);
                 }
                 "class_declaration" => {
                     let name = child_name(child, source);
-                    let cid = add_node(engine, NodeKind::Class, &name, &format!("class {name} in {file_path}"));
+                    let cid = add_node(
+                        engine,
+                        NodeKind::Class,
+                        &name,
+                        &format!("class {name} in {file_path}"),
+                    );
                     set_byte_meta(engine, &cid, file_path, child);
                     engine.add_edge(Edge::new(module_id, cid, EdgeKind::Contains));
                     func_name_to_ids.entry(name).or_default().push(cid);
                     // Process class body for methods
                     if let Some(body) = child.child_by_field_name("body") {
-                        process_ts_class_body(body, source, file_path, cid, engine, func_name_to_ids);
+                        process_ts_class_body(
+                            body,
+                            source,
+                            file_path,
+                            cid,
+                            engine,
+                            func_name_to_ids,
+                        );
                     }
                 }
                 _ => {}
@@ -391,11 +471,18 @@ impl AstGraphBuilder {
         func_name_to_ids: &mut HashMap<String, Vec<NodeId>>,
     ) {
         for i in 0..root.named_child_count() {
-            let Some(child) = root.named_child(i) else { continue };
+            let Some(child) = root.named_child(i) else {
+                continue;
+            };
             match child.kind() {
                 "function_declaration" | "method_declaration" => {
                     let name = child_name(child, source);
-                    let fid = add_node(engine, NodeKind::Function, &name, &format!("func {name} in {file_path}"));
+                    let fid = add_node(
+                        engine,
+                        NodeKind::Function,
+                        &name,
+                        &format!("func {name} in {file_path}"),
+                    );
                     set_byte_meta(engine, &fid, file_path, child);
                     engine.add_edge(Edge::new(module_id, fid, EdgeKind::Contains));
                     func_name_to_ids.entry(name).or_default().push(fid);
@@ -403,7 +490,12 @@ impl AstGraphBuilder {
                 "type_declaration" => {
                     // Go type declarations can be structs or interfaces
                     let name = child_name(child, source);
-                    let tid = add_node(engine, NodeKind::Class, &name, &format!("type {name} in {file_path}"));
+                    let tid = add_node(
+                        engine,
+                        NodeKind::Class,
+                        &name,
+                        &format!("type {name} in {file_path}"),
+                    );
                     set_byte_meta(engine, &tid, file_path, child);
                     engine.add_edge(Edge::new(module_id, tid, EdgeKind::Contains));
                     func_name_to_ids.entry(name).or_default().push(tid);
@@ -426,18 +518,30 @@ impl AstGraphBuilder {
         func_name_to_ids: &mut HashMap<String, Vec<NodeId>>,
     ) {
         for i in 0..root.named_child_count() {
-            let Some(child) = root.named_child(i) else { continue };
+            let Some(child) = root.named_child(i) else {
+                continue;
+            };
             match child.kind() {
                 "method_declaration" => {
                     let name = child_name(child, source);
-                    let mid = add_node(engine, NodeKind::Function, &name, &format!("method {name} in {file_path}"));
+                    let mid = add_node(
+                        engine,
+                        NodeKind::Function,
+                        &name,
+                        &format!("method {name} in {file_path}"),
+                    );
                     set_byte_meta(engine, &mid, file_path, child);
                     engine.add_edge(Edge::new(module_id, mid, EdgeKind::Contains));
                     func_name_to_ids.entry(name).or_default().push(mid);
                 }
                 "class_declaration" => {
                     let name = child_name(child, source);
-                    let cid = add_node(engine, NodeKind::Class, &name, &format!("class {name} in {file_path}"));
+                    let cid = add_node(
+                        engine,
+                        NodeKind::Class,
+                        &name,
+                        &format!("class {name} in {file_path}"),
+                    );
                     set_byte_meta(engine, &cid, file_path, child);
                     engine.add_edge(Edge::new(module_id, cid, EdgeKind::Contains));
                     func_name_to_ids.entry(name).or_default().push(cid);
@@ -447,7 +551,12 @@ impl AstGraphBuilder {
                             if let Some(member) = body.named_child(j) {
                                 if member.kind() == "method_declaration" {
                                     let mname = child_name(member, source);
-                                    let mid = add_node(engine, NodeKind::Function, &mname, &format!("method {mname} in {file_path}"));
+                                    let mid = add_node(
+                                        engine,
+                                        NodeKind::Function,
+                                        &mname,
+                                        &format!("method {mname} in {file_path}"),
+                                    );
                                     set_byte_meta(engine, &mid, file_path, member);
                                     engine.add_edge(Edge::new(cid, mid, EdgeKind::Contains));
                                     func_name_to_ids.entry(mname).or_default().push(mid);
@@ -508,7 +617,9 @@ fn process_py_class(
 
     if let Some(body) = node.child_by_field_name("body") {
         for i in 0..body.named_child_count() {
-            let Some(child) = body.named_child(i) else { continue };
+            let Some(child) = body.named_child(i) else {
+                continue;
+            };
             match child.kind() {
                 "function_definition" => {
                     let fid = process_py_function(child, source, file_path, class_id, engine);
@@ -518,7 +629,14 @@ fn process_py_class(
                         .push(fid);
                 }
                 "class_definition" => {
-                    let cid = process_py_class(child, source, file_path, class_id, engine, func_name_to_ids);
+                    let cid = process_py_class(
+                        child,
+                        source,
+                        file_path,
+                        class_id,
+                        engine,
+                        func_name_to_ids,
+                    );
                     func_name_to_ids
                         .entry(child_name(child, source))
                         .or_default()
@@ -554,8 +672,8 @@ fn process_py_import(
             return;
         }
 
-        let target_id = find_node_by_name(engine, top_module, &NodeKind::Module)
-            .unwrap_or_else(|| {
+        let target_id =
+            find_node_by_name(engine, top_module, &NodeKind::Module).unwrap_or_else(|| {
                 add_node(
                     engine,
                     NodeKind::Module,
@@ -575,7 +693,9 @@ fn collect_py_calls(
     engine: &mut GraphEngine,
 ) {
     for i in 0..node.named_child_count() {
-        let Some(child) = node.named_child(i) else { continue };
+        let Some(child) = node.named_child(i) else {
+            continue;
+        };
         if child.kind() == "call" {
             let call_target = child
                 .child_by_field_name("function")
@@ -583,10 +703,9 @@ fn collect_py_calls(
                 .unwrap_or_default();
             if !call_target.is_empty() && !is_builtin(call_target.as_str()) {
                 if let Some(target_id) =
-                    find_node_by_name(engine, call_target.as_str(), &NodeKind::Function)
-                        .or_else(|| {
-                            find_node_by_name(engine, call_target.as_str(), &NodeKind::Class)
-                        })
+                    find_node_by_name(engine, call_target.as_str(), &NodeKind::Function).or_else(
+                        || find_node_by_name(engine, call_target.as_str(), &NodeKind::Class),
+                    )
                 {
                     engine.add_edge(Edge::new(caller_id, target_id, EdgeKind::Calls));
                 }
@@ -607,10 +726,17 @@ fn process_ts_class_body(
     func_name_to_ids: &mut HashMap<String, Vec<NodeId>>,
 ) {
     for i in 0..body.named_child_count() {
-        let Some(child) = body.named_child(i) else { continue };
+        let Some(child) = body.named_child(i) else {
+            continue;
+        };
         if child.kind() == "method_definition" {
             let name = child_name(child, source);
-            let mid = add_node(engine, NodeKind::Function, &name, &format!("method {name} in {file_path}"));
+            let mid = add_node(
+                engine,
+                NodeKind::Function,
+                &name,
+                &format!("method {name} in {file_path}"),
+            );
             set_byte_meta(engine, &mid, file_path, child);
             engine.add_edge(Edge::new(class_id, mid, EdgeKind::Contains));
             func_name_to_ids.entry(name).or_default().push(mid);
@@ -732,8 +858,7 @@ fn is_builtin(name: &str) -> bool {
 fn is_stdlib_module(name: &str) -> bool {
     matches!(
         name,
-        "os"
-            | "sys"
+        "os" | "sys"
             | "re"
             | "json"
             | "math"
@@ -877,13 +1002,25 @@ pub fn is_valid_username(name: &str) -> bool {
 
         let functions = engine.nodes_by_kind(&NodeKind::Function);
         let func_names: Vec<&str> = functions.iter().map(|n| n.name.as_str()).collect();
-        assert!(func_names.contains(&"is_valid_username"), "should find top-level function, got: {func_names:?}");
-        assert!(func_names.contains(&"__init__"), "should find __init__ method, got: {func_names:?}");
-        assert!(func_names.contains(&"validate"), "should find validate method, got: {func_names:?}");
+        assert!(
+            func_names.contains(&"is_valid_username"),
+            "should find top-level function, got: {func_names:?}"
+        );
+        assert!(
+            func_names.contains(&"__init__"),
+            "should find __init__ method, got: {func_names:?}"
+        );
+        assert!(
+            func_names.contains(&"validate"),
+            "should find validate method, got: {func_names:?}"
+        );
 
         let classes = engine.nodes_by_kind(&NodeKind::Class);
         let class_names: Vec<&str> = classes.iter().map(|n| n.name.as_str()).collect();
-        assert!(class_names.contains(&"UsernameValidator"), "should find UsernameValidator class, got: {class_names:?}");
+        assert!(
+            class_names.contains(&"UsernameValidator"),
+            "should find UsernameValidator class, got: {class_names:?}"
+        );
     }
 
     #[test]
@@ -904,7 +1041,10 @@ pub fn is_valid_username(name: &str) -> bool {
             .iter()
             .filter(|(_, e)| e.kind == EdgeKind::Contains)
             .count();
-        assert!(contains_count >= 2, "module should contain at least class + function, got {contains_count}");
+        assert!(
+            contains_count >= 2,
+            "module should contain at least class + function, got {contains_count}"
+        );
     }
 
     #[test]
@@ -913,7 +1053,10 @@ pub fn is_valid_username(name: &str) -> bool {
         let builder = AstGraphBuilder::default();
         let engine = builder.build(repo.path());
         let files = engine.nodes_by_kind(&NodeKind::File);
-        assert!(files.iter().all(|f| !f.name.contains("README")), "README.md should be skipped");
+        assert!(
+            files.iter().all(|f| !f.name.contains("README")),
+            "README.md should be skipped"
+        );
     }
 
     #[test]
@@ -923,14 +1066,25 @@ pub fn is_valid_username(name: &str) -> bool {
         let engine = builder.build(repo.path());
         let chunks = builder.extract_chunks(&engine, repo.path());
 
-        assert!(!chunks.is_empty(), "should have chunks for functions/classes");
-        let func_chunk = chunks.iter().find(|(_, c)| c.text.contains("def is_valid_username"));
-        assert!(func_chunk.is_some(), "should have a chunk for is_valid_username function");
+        assert!(
+            !chunks.is_empty(),
+            "should have chunks for functions/classes"
+        );
+        let func_chunk = chunks
+            .iter()
+            .find(|(_, c)| c.text.contains("def is_valid_username"));
+        assert!(
+            func_chunk.is_some(),
+            "should have a chunk for is_valid_username function"
+        );
         let (_, chunk) = func_chunk.unwrap();
         assert!(chunk.text.contains("def is_valid_username"));
         assert!(chunk.path.ends_with("validators.py"));
         assert!(chunk.line_start >= 1, "line_start should be 1-indexed");
-        assert!(chunk.line_end > chunk.line_start, "line range should be valid");
+        assert!(
+            chunk.line_end > chunk.line_start,
+            "line range should be valid"
+        );
     }
 
     #[test]
@@ -953,13 +1107,25 @@ pub fn is_valid_username(name: &str) -> bool {
 
         let functions = engine.nodes_by_kind(&NodeKind::Function);
         let func_names: Vec<&str> = functions.iter().map(|n| n.name.as_str()).collect();
-        assert!(func_names.contains(&"is_valid_username"), "should find top-level fn, got: {func_names:?}");
-        assert!(func_names.contains(&"new"), "should find impl method new, got: {func_names:?}");
-        assert!(func_names.contains(&"validate"), "should find impl method validate, got: {func_names:?}");
+        assert!(
+            func_names.contains(&"is_valid_username"),
+            "should find top-level fn, got: {func_names:?}"
+        );
+        assert!(
+            func_names.contains(&"new"),
+            "should find impl method new, got: {func_names:?}"
+        );
+        assert!(
+            func_names.contains(&"validate"),
+            "should find impl method validate, got: {func_names:?}"
+        );
 
         let classes = engine.nodes_by_kind(&NodeKind::Class);
         let class_names: Vec<&str> = classes.iter().map(|n| n.name.as_str()).collect();
-        assert!(class_names.contains(&"Validator"), "should find Validator struct, got: {class_names:?}");
+        assert!(
+            class_names.contains(&"Validator"),
+            "should find Validator struct, got: {class_names:?}"
+        );
     }
 
     #[test]

@@ -34,8 +34,8 @@ impl ErrorSignalExtractor {
 
         let tb_frame =
             Regex::new(r#"File\s+"([^"]+)",\s*line\s+(\d+)"#).expect("traceback regex compiles");
-        let error_type_re =
-            Regex::new(r"(\w+(?:Error|Exception|Warning))(?::|\.|\s)").expect("error-type regex compiles");
+        let error_type_re = Regex::new(r"(\w+(?:Error|Exception|Warning))(?::|\.|\s)")
+            .expect("error-type regex compiles");
         let assertion =
             Regex::new(r"AssertionError:\s*(.+?)(?:\n|$)").expect("assertion regex compiles");
 
@@ -161,8 +161,7 @@ AssertionError: invalid input"#;
         let ex = ErrorSignalExtractor::default();
         let snippets = ex.extract(stmt);
         let has_assertion = snippets.iter().any(|s| {
-            s.error_type.as_deref() == Some("AssertionError")
-                && s.message.contains("expected True")
+            s.error_type.as_deref() == Some("AssertionError") && s.message.contains("expected True")
         });
         assert!(has_assertion);
     }

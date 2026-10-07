@@ -73,11 +73,7 @@ impl GrpoOptimizer {
     /// of traversing sessions that were successful.
     ///
     /// Returns the number of edges whose weights were updated.
-    pub fn optimize(
-        &self,
-        graph: &mut GraphEngine,
-        sessions: &[(Trace, bool)],
-    ) -> usize {
+    pub fn optimize(&self, graph: &mut GraphEngine, sessions: &[(Trace, bool)]) -> usize {
         if sessions.is_empty() {
             return 0;
         }
@@ -201,8 +197,8 @@ fn apply_update(graph: &mut GraphEngine, edge_index: usize, advantage: f64, conf
     edge.update_count += 1;
     #[allow(clippy::cast_precision_loss)]
     {
-        edge.confidence = (edge.update_count as f64 / config.min_updates_for_confidence as f64)
-            .min(1.0);
+        edge.confidence =
+            (edge.update_count as f64 / config.min_updates_for_confidence as f64).min(1.0);
     }
 }
 
@@ -261,7 +257,10 @@ mod tests {
             let edges = graph.all_edges();
             edges[0].weight
         };
-        assert!((original_weight - 1.0).abs() < 1e-10, "initial weight should be 1.0");
+        assert!(
+            (original_weight - 1.0).abs() < 1e-10,
+            "initial weight should be 1.0"
+        );
 
         let sessions = vec![
             (make_trace("inst1", vec!["a.py", "b.py"], true), true),
@@ -278,9 +277,17 @@ mod tests {
 
         let edges = graph.all_edges();
         // Edge a.py ↔ b.py was traversed in 2 successful sessions → positive advantage
-        assert!(edges[0].weight > 1.0, "successful edge should have increased weight, got {}", edges[0].weight);
+        assert!(
+            edges[0].weight > 1.0,
+            "successful edge should have increased weight, got {}",
+            edges[0].weight
+        );
         // Edge b.py ↔ c.py was traversed in 1 failed session → negative advantage
-        assert!(edges[1].weight < 1.0, "failed edge should have decreased weight, got {}", edges[1].weight);
+        assert!(
+            edges[1].weight < 1.0,
+            "failed edge should have decreased weight, got {}",
+            edges[1].weight
+        );
     }
 
     #[test]
@@ -312,8 +319,14 @@ mod tests {
         });
         optimizer.optimize(&mut graph, &sessions);
         let edges = graph.all_edges();
-        assert!(edges[0].weight <= 100.0, "weight should not exceed upper bound");
-        assert!(edges[0].weight >= 0.01, "weight should not go below lower bound");
+        assert!(
+            edges[0].weight <= 100.0,
+            "weight should not exceed upper bound"
+        );
+        assert!(
+            edges[0].weight >= 0.01,
+            "weight should not go below lower bound"
+        );
     }
 
     #[test]

@@ -195,6 +195,9 @@ mod tests {
         p2.update(true, 1.0, 0.1);
         let delta_half = p2.weight() - w_before;
 
-        assert!(delta_small > delta_half, "higher weight_factor → larger change");
+        assert!(
+            delta_small > delta_half,
+            "higher weight_factor → larger change"
+        );
     }
 }

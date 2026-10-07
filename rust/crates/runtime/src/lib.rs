@@ -65,6 +65,7 @@ pub use compact::{
     get_compact_continuation_message, should_compact, CompactionConfig, CompactionResult,
 };
 pub use config::{
+    clear_user_provider_settings, save_user_provider_settings,
     suppress_config_warnings_for_json_mode, ConfigEntry, ConfigError, ConfigFileReport,
     ConfigFileStatus, ConfigInspection, ConfigLoader, ConfigSource, McpConfigCollection,
     McpInvalidServerConfig, McpManagedProxyServerConfig, McpOAuthConfig, McpRemoteServerConfig,

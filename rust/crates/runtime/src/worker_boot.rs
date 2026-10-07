@@ -1648,6 +1648,8 @@ mod tests {
         fs::create_dir_all(&worktree).expect("worktree dir");
         fs::create_dir_all(git_dir.join("objects")).expect("objects dir");
         fs::create_dir_all(git_dir.join("refs/heads")).expect("refs dir");
+        // Git canonicalizes /tmp to /private/tmp on macOS. Compare one identity.
+        let git_dir = git_dir.canonicalize().expect("canonical gitdir");
         fs::write(git_dir.join("HEAD"), "ref: refs/heads/main\n").expect("HEAD");
         fs::write(
             worktree.join(".git"),

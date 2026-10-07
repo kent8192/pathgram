@@ -121,16 +121,14 @@ impl HybridCandidateSource {
                         return true;
                     }
                     // Basename match as fallback
-                    let chunk_base =
-                        std::path::Path::new(&chunk.path)
-                            .file_name()
-                            .and_then(|n| n.to_str())
-                            .unwrap_or("");
-                    let err_base =
-                        std::path::Path::new(err_path.as_str())
-                            .file_name()
-                            .and_then(|n| n.to_str())
-                            .unwrap_or("");
+                    let chunk_base = std::path::Path::new(&chunk.path)
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("");
+                    let err_base = std::path::Path::new(err_path.as_str())
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("");
                     chunk_base == err_base
                 });
                 for (idx, _) in candidates_for_path {
@@ -170,8 +168,12 @@ impl HybridCandidateSource {
             if let Some(engine) = graph {
                 let seeds = find_ppr_seeds(engine, task_vec, self.ppr_top_seeds);
                 if !seeds.is_empty() {
-                    let ppr_scores =
-                        personalized_pagerank(engine, &seeds, self.ppr_damping, self.ppr_iterations);
+                    let ppr_scores = personalized_pagerank(
+                        engine,
+                        &seeds,
+                        self.ppr_damping,
+                        self.ppr_iterations,
+                    );
                     for (node_id, _score) in ppr_scores.into_iter().take(self.ppr_top_n) {
                         if let Some(node) = engine.get_node(&node_id) {
                             if let Some(MetaValue::Text(file_path)) = node.get_meta("file") {
@@ -193,8 +195,17 @@ impl HybridCandidateSource {
 
 /// Find top seed nodes for PPR by computing cosine similarity between
 /// `task_vec` and each Function/Class node's stored embedding.
-fn find_ppr_seeds(engine: &GraphEngine, task_vec: &[f32], top_n: usize) -> Vec<crate::graph::models::NodeId> {
-    let norm = task_vec.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-12);
+fn find_ppr_seeds(
+    engine: &GraphEngine,
+    task_vec: &[f32],
+    top_n: usize,
+) -> Vec<crate::graph::models::NodeId> {
+    let norm = task_vec
+        .iter()
+        .map(|x| x * x)
+        .sum::<f32>()
+        .sqrt()
+        .max(1e-12);
     let q: Vec<f32> = task_vec.iter().map(|x| x / norm).collect();
 
     let mut scored: Vec<(crate::graph::models::NodeId, f32)> = engine
@@ -248,16 +259,31 @@ mod tests {
         // Task vector is orthogonal → cosine ≈ 0 for all chunks
         let task_vec = vec![0.0, 1.0, 0.0, 0.0_f32];
         let source = HybridCandidateSource::default();
-        let candidates = source.generate(&store, &task_vec, &chunks, "ASCIIUsernameValidator", repo.path(), None);
+        let candidates = source.generate(
+            &store,
+            &task_vec,
+            &chunks,
+            "ASCIIUsernameValidator",
+            repo.path(),
+            None,
+        );
         // Embedding top-N should be empty (zero scores), keyword should find validators.py
-        assert!(!candidates.is_empty(), "keyword candidates should be present");
+        assert!(
+            !candidates.is_empty(),
+            "keyword candidates should be present"
+        );
         let has_validators_keyword = candidates.iter().any(|(idx, src)| {
             *src == CandidateSource::Keyword && chunks[*idx].path.contains("validators.py")
         });
         assert!(has_validators_keyword);
         // Verify no embedding candidates were returned
-        let has_embedding = candidates.iter().any(|(_, src)| *src == CandidateSource::Embedding);
-        assert!(!has_embedding, "embedding should return empty for orthogonal vectors");
+        let has_embedding = candidates
+            .iter()
+            .any(|(_, src)| *src == CandidateSource::Embedding);
+        assert!(
+            !has_embedding,
+            "embedding should return empty for orthogonal vectors"
+        );
     }
 
     #[test]
@@ -271,8 +297,18 @@ mod tests {
         }
         let task_vec = vec![0.1_f32; 4];
         let source = HybridCandidateSource::default();
-        let candidates = source.generate(&store, &task_vec, &chunks, "nonexistent_keyword_xyz", repo.path(), None);
-        let embedding_count = candidates.iter().filter(|(_, s)| *s == CandidateSource::Embedding).count();
+        let candidates = source.generate(
+            &store,
+            &task_vec,
+            &chunks,
+            "nonexistent_keyword_xyz",
+            repo.path(),
+            None,
+        );
+        let embedding_count = candidates
+            .iter()
+            .filter(|(_, s)| *s == CandidateSource::Embedding)
+            .count();
         assert!(embedding_count > 0);
     }
 
@@ -290,7 +326,14 @@ mod tests {
             embedding_top_n: 1,
             ..Default::default()
         };
-        let candidates = source.generate(&store, &task_vec, &chunks, "ASCIIUsernameValidator util", repo.path(), None);
+        let candidates = source.generate(
+            &store,
+            &task_vec,
+            &chunks,
+            "ASCIIUsernameValidator util",
+            repo.path(),
+            None,
+        );
         // Should have both embedding and keyword sources
         let sources: HashSet<_> = candidates.iter().map(|(_, s)| *s).collect();
         assert!(sources.contains(&CandidateSource::Embedding));

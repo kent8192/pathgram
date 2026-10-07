@@ -93,7 +93,8 @@ import sys
 claw = sys.argv[1]
 payload = sys.stdin.buffer.read()
 master, slave = pty.openpty()
-child = subprocess.Popen([claw], stdin=slave, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+# Pin the provider represented by this isolated credential fixture.
+child = subprocess.Popen([claw, "--model", "claude-sonnet-4-6"], stdin=slave, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 os.close(slave)
 os.write(master, payload)
 stdout, stderr = child.communicate(timeout=30)

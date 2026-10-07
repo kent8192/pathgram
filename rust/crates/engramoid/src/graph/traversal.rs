@@ -56,10 +56,8 @@ pub fn personalized_pagerank(
                     new_scores[j] += scores[i] * p;
                 }
             } else {
-                let total_weight: f64 = neighbors
-                    .iter()
-                    .map(|(_, e)| e.weight * e.confidence)
-                    .sum();
+                let total_weight: f64 =
+                    neighbors.iter().map(|(_, e)| e.weight * e.confidence).sum();
                 if total_weight > 0.0 {
                     for (target_id, edge) in &neighbors {
                         if let Some(&j) = id_to_idx.get(target_id) {

@@ -1576,6 +1576,7 @@ NO_EQUALS_LINE
     fn anthropic_missing_credentials_hint_is_none_when_no_foreign_creds_present() {
         // given
         let _lock = env_lock();
+        let _deepseek = EnvVarGuard::set("DEEPSEEK_API_KEY", None);
         let _openai = EnvVarGuard::set("OPENAI_API_KEY", None);
         let _xai = EnvVarGuard::set("XAI_API_KEY", None);
         let _dashscope = EnvVarGuard::set("DASHSCOPE_API_KEY", None);
@@ -1702,6 +1703,7 @@ NO_EQUALS_LINE
     fn anthropic_missing_credentials_builds_error_with_canonical_env_vars_and_no_hint_when_clean() {
         // given
         let _lock = env_lock();
+        let _deepseek = EnvVarGuard::set("DEEPSEEK_API_KEY", None);
         let _openai = EnvVarGuard::set("OPENAI_API_KEY", None);
         let _xai = EnvVarGuard::set("XAI_API_KEY", None);
         let _dashscope = EnvVarGuard::set("DASHSCOPE_API_KEY", None);
@@ -1780,6 +1782,7 @@ NO_EQUALS_LINE
     fn anthropic_missing_credentials_hint_ignores_empty_string_values() {
         // given
         let _lock = env_lock();
+        let _deepseek = EnvVarGuard::set("DEEPSEEK_API_KEY", None);
         // An empty value is semantically equivalent to "not set" for the
         // credential discovery path, so the sniffer must treat it that way
         // to avoid false-positive hints for users who intentionally cleared
